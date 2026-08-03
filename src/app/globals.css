@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f8fafc;
+  --fg: #0b1220;
+  --accent: #0f766e;
+}
+
+.dark {
+  --bg: #0b1220;
+  --fg: #f8fafc;
+  --accent: #2dd4bf;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(15, 118, 110, 0.12), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(15, 23, 42, 0.06), transparent 50%),
+    var(--bg);
+}

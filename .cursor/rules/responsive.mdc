@@ -1,0 +1,13 @@
+---
+description: Responsividade obrigatória do painel VPay
+alwaysApply: true
+---
+
+# Responsividade — regra inegociável
+
+- O sistema é **100% responsivo mobile-first**. Toda página/componente novo deve funcionar em telas de 375px para cima, sem overflow horizontal.
+- Tailwind mobile-first: estilos base para mobile; `sm:`, `md:`, `lg:` apenas para crescer.
+- Navegação: sidebar somente no desktop (`hidden lg:block`); no mobile usar o drawer do `Shell` (topbar + menu ☰).
+- Grids/tabelas: colapsar colunas no mobile (`grid-cols-1 sm:grid-cols-2 ...`); tabelas largas em contêiner `overflow-x-auto`.
+- Painéis decorativos (ex.: lateral institucional do /login) ficam ocultos no mobile ou abaixo do conteúdo principal.
+- Branding sempre via `src/lib/brand.ts` (nome, site, e-mail, WhatsApp) — nunca hardcodado.
