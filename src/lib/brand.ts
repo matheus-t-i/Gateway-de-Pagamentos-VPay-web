@@ -16,4 +16,15 @@ export const BRAND = {
   whatsappLink: 'https://wa.me/5511999999999',
   /** Versão vigente do conjunto de documentos legais. */
   docsVersao: '2.0.0',
+  /**
+   * Assets em `public/brand/`.
+   * - mark: ícone V (favicon / compacto)
+   * - dark: letra preta (fundos claros)
+   * - light: letra branca (fundos escuros)
+   */
+  logos: {
+    mark: '/brand/vpay-mark.png',
+    dark: '/brand/vpay-logo-dark.png',
+    light: '/brand/vpay-logo-light.png',
+  },
 } as const;

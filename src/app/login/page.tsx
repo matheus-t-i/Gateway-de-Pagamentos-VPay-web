@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Marca } from '@/components/marca';
 import { useAuth } from '@/lib/auth';
 import { BRAND } from '@/lib/brand';
 import { salvarCredsOnboarding } from '@/lib/onboarding';
@@ -90,7 +91,7 @@ export default function LoginPage() {
           vem primeiro e este painel não aparece (mobile-first). */}
       <section className="hidden flex-col justify-between bg-ink-950 px-8 py-10 text-sand-50 lg:flex lg:min-h-screen lg:w-1/2 lg:px-16 lg:py-16">
         <div>
-          <p className="font-display text-4xl font-semibold text-accent">{BRAND.nome}</p>
+          <Marca fundo="escuro" href={null} prioridade className="mb-1" />
           <h1 className="mt-10 font-display text-3xl font-semibold leading-tight lg:text-5xl">
             Acesso seguro ao seu gateway de pagamentos
           </h1>
@@ -119,10 +120,8 @@ export default function LoginPage() {
 
       {/* Card de login (direita; no celular é a tela toda) */}
       <section className="flex flex-1 flex-col items-center justify-center bg-sand-50 px-4 py-10 dark:bg-ink-900 sm:px-6 lg:min-h-screen">
-        {/* Marca compacta — apenas mobile */}
-        <p className="mb-6 font-display text-4xl font-semibold text-accent lg:hidden">
-          {BRAND.nome}
-        </p>
+        {/* Marca — apenas mobile (desktop usa o painel institucional) */}
+        <Marca href={null} prioridade className="mb-6 lg:hidden" />
         <div className="w-full max-w-md rounded-2xl border border-ink-800/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-ink-950 sm:p-8">
           <h2 className="text-center font-display text-3xl font-semibold">
             Acessar Conta

@@ -3,20 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f8fafc;
-  --fg: #0b1220;
-  --accent: #0f766e;
+  --bg: #f7f6f4;
+  --fg: #0a0a0a;
+  --accent: #ffc107;
+  --accent-foreground: #0a0a0a;
+  --accent-strong: #ff3300;
 }
 
 .dark {
-  --bg: #0b1220;
-  --fg: #f8fafc;
-  --accent: #2dd4bf;
+  --bg: #0a0a0a;
+  --fg: #f7f6f4;
+  --accent: #ffc107;
+  --accent-foreground: #0a0a0a;
+  --accent-strong: #ff4d1a;
 }
 
 body {
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(15, 118, 110, 0.12), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(15, 23, 42, 0.06), transparent 50%),
+    radial-gradient(1200px 600px at 10% -10%, rgba(255, 193, 7, 0.14), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(255, 51, 0, 0.06), transparent 50%),
     var(--bg);
 }

@@ -5,6 +5,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'VPay Gateway',
   description: 'Painel do Gateway PIX VPay',
+  icons: {
+    icon: [{ url: '/brand/vpay-mark.png', type: 'image/png' }],
+    apple: [{ url: '/brand/vpay-mark.png', type: 'image/png' }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

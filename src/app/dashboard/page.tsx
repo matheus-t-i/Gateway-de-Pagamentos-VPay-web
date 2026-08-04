@@ -188,7 +188,7 @@ export default function DashboardPage() {
                 tickFormatter={(v) => brl(v).replace('R$ ', 'R$')} />
               <Tooltip formatter={(v: number) => brl(v)} />
               <Line type="monotone" dataKey="geradas" stroke="#38bdf8" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="aprovadas" stroke="#0f766e" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="aprovadas" stroke="#FFC107" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -197,7 +197,7 @@ export default function DashboardPage() {
       {/* ===== Saldo + Totais ===== */}
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         {/* Saldo hero */}
-        <Cartao className="bg-gradient-to-br from-accent to-[#0b5e57] text-accent-foreground lg:col-span-2">
+        <Cartao className="bg-gradient-to-br from-accent to-accent-strong text-accent-foreground lg:col-span-2">
           <div className="flex items-center justify-between">
             <p className="text-sm opacity-80">Saldo disponível</p>
             <button
@@ -219,7 +219,7 @@ export default function DashboardPage() {
             type="button"
             disabled={!empresaSaque}
             onClick={() => setSaqueAberto(true)}
-            className="mt-4 rounded-lg bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur transition hover:bg-white/25 disabled:opacity-50"
+            className="mt-4 rounded-lg bg-black/10 px-4 py-2 text-sm font-medium transition hover:bg-black/15 disabled:opacity-50"
           >
             Sacar
           </button>
@@ -405,7 +405,7 @@ export default function DashboardPage() {
                 <XAxis dataKey="dia" fontSize={12} />
                 <YAxis fontSize={12} />
                 <Tooltip formatter={(v: number) => brl(v)} />
-                <Bar dataKey="volume" fill="#0f766e" radius={4} />
+                <Bar dataKey="volume" fill="#FFC107" radius={4} />
               </BarChart>
             </ResponsiveContainer>
           </Cartao>

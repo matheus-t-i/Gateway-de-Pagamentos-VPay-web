@@ -3,8 +3,8 @@
 import { FormEvent, Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Marca } from '@/components/marca';
 import { api } from '@/lib/api';
-import { BRAND } from '@/lib/brand';
 
 function Formulario() {
   const router = useRouter();
@@ -108,7 +108,7 @@ function Formulario() {
 export default function RedefinirSenhaPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10 sm:px-6">
-      <p className="font-display text-4xl font-semibold text-accent">{BRAND.nome}</p>
+      <Marca href="/login" prioridade />
       <h1 className="mt-3 font-display text-2xl font-semibold">Criar nova senha</h1>
       <Suspense fallback={<p className="mt-6 text-sm opacity-70">Carregando…</p>}>
         <Formulario />

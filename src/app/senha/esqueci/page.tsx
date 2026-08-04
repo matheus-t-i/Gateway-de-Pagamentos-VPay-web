@@ -2,8 +2,8 @@
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
+import { Marca } from '@/components/marca';
 import { api } from '@/lib/api';
-import { BRAND } from '@/lib/brand';
 
 export default function EsqueciSenhaPage() {
   const [email, setEmail] = useState('');
@@ -30,7 +30,7 @@ export default function EsqueciSenhaPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10 sm:px-6">
-      <p className="font-display text-4xl font-semibold text-accent">{BRAND.nome}</p>
+      <Marca href="/login" prioridade />
       <h1 className="mt-3 font-display text-2xl font-semibold">Esqueci minha senha</h1>
 
       {enviado ? (

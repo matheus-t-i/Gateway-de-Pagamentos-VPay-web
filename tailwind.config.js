@@ -6,17 +6,18 @@ module.exports = {
     extend: {
       colors: {
         ink: {
-          950: '#0b1220',
-          900: '#111827',
-          800: '#1f2937',
+          950: '#0a0a0a',
+          900: '#121212',
+          800: '#1f1f1f',
         },
         accent: {
-          DEFAULT: '#0f766e',
-          foreground: '#ecfdf5',
+          DEFAULT: '#FFC107',
+          foreground: '#0a0a0a',
+          strong: '#FF3300',
         },
         sand: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
+          50: '#f7f6f4',
+          100: '#eeece8',
         },
       },
       fontFamily: {
