@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { Modal, ModalAcoes } from './modal';
+import { TextoRotulo } from './obrigatorio';
 
 const inputCls =
   'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900';
@@ -98,7 +99,7 @@ export function ContaAcoes({ ativa }: { ativa: boolean }) {
   );
 }
 
-function DepositoModal({ open, onClose, token }: ModalProps) {
+export function DepositoModal({ open, onClose, token }: ModalProps) {
   const qc = useQueryClient();
   const [valor, setValor] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -129,7 +130,7 @@ function DepositoModal({ open, onClose, token }: ModalProps) {
   }
 
   return (
-    <Modal open={open} onClose={fechar} title="Depositar via PIX">
+    <Modal open={open} onClose={fechar} title="Depósito interno via PIX">
       {!resp ? (
         <form
           onSubmit={(e) => {
@@ -139,11 +140,11 @@ function DepositoModal({ open, onClose, token }: ModalProps) {
           className="space-y-4"
         >
           <p className="text-sm opacity-70">
-            Gere um código PIX copia-e-cola para adicionar saldo. O crédito entra
-            quando o pagamento é confirmado.
+            Gere um código PIX copia-e-cola para adicionar saldo na sua conta. O
+            crédito entra quando o pagamento é confirmado.
           </p>
           <label className="block text-sm">
-            Valor (R$)
+            <TextoRotulo obrigatorio>Valor (R$)</TextoRotulo>
             <input
               className={inputCls}
               value={valor}
@@ -280,7 +281,7 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
               className="space-y-3"
             >
               <label className="block text-sm">
-                Chave PIX aprovada
+                <TextoRotulo obrigatorio>Chave PIX aprovada</TextoRotulo>
                 <select
                   className={inputCls}
                   value={chaveSel}
@@ -296,7 +297,7 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
                 </select>
               </label>
               <label className="block text-sm">
-                Valor (R$)
+                <TextoRotulo obrigatorio>Valor (R$)</TextoRotulo>
                 <input
                   className={inputCls}
                   value={valor}
@@ -359,7 +360,7 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
                 </select>
               </label>
               <label className="block text-sm">
-                Chave
+                <TextoRotulo obrigatorio>Chave</TextoRotulo>
                 <input
                   className={inputCls}
                   value={chave}
@@ -445,7 +446,7 @@ function CredencialModal({ open, onClose, token }: ModalProps) {
           className="space-y-4"
         >
           <label className="block text-sm">
-            Nome
+            <TextoRotulo obrigatorio>Nome</TextoRotulo>
             <input
               className={inputCls}
               value={nome}

@@ -17,6 +17,7 @@ import {
   NovaAdquirenteModal,
   TaxaPadraoModal,
 } from '@/components/adquirente-modais';
+import { TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
@@ -322,7 +323,7 @@ export default function AdquirentesPage() {
             </label>
 
             <label className="block text-sm">
-              Adquirente de destino
+              <TextoRotulo obrigatorio>Adquirente de destino</TextoRotulo>
               <select
                 className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900"
                 value={novaAdq}

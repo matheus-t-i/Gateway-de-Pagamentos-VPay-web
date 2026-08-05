@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
+import { TextoRotulo } from '@/components/obrigatorio';
 import {
   BarraFiltros,
   FiltroSelect,
@@ -205,7 +206,7 @@ export default function WebhooksPage() {
             <h2 className="text-sm font-semibold">Novo webhook</h2>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <label className="block text-sm">
-                Nome
+                <TextoRotulo obrigatorio>Nome</TextoRotulo>
                 <input
                   className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
                   value={nome}
@@ -215,7 +216,7 @@ export default function WebhooksPage() {
                 />
               </label>
               <label className="block text-sm">
-                URL de destino
+                <TextoRotulo obrigatorio>URL de destino</TextoRotulo>
                 <input
                   className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
                   value={url}
@@ -238,7 +239,9 @@ export default function WebhooksPage() {
                 />
               </label>
               <label className="block text-sm">
-                Valor da credencial
+                <TextoRotulo obrigatorio={!!nomeHeader.trim()}>
+                  Valor da credencial
+                </TextoRotulo>
                 <input
                   className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 font-mono text-sm dark:border-white/10 dark:bg-ink-900"
                   value={segredo}

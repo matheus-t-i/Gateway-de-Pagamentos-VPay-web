@@ -61,13 +61,12 @@ src/
 
 | Rota | O que faz |
 |---|---|
-| `/dashboard` | Gráfico Geradas × Aprovadas, card de saldo com Sacar/Depositar, KPIs, transações recentes; bloco admin com visão global (só ADMINISTRADOR) |
+| `/dashboard` | Gráfico Geradas × Aprovadas, card de saldo com Depósito interno/Sacar, KPIs, transações recentes; bloco admin com visão global (só ADMINISTRADOR) |
 | `/transacoes` | Movimentações da conta com filtros (situação, direção, busca) e paginação |
-| `/adquirentes` | Vitrine de adquirentes liberadas; escolha da adquirente de PIX in |
+| `/adquirentes` | Vitrine de adquirentes liberadas; destaque da adquirente ativa de PIX in e troca |
 | `/configuracoes` | Perfil, tema (PADRAO/CLARO/ESCURO) e 2FA (ativar com QR Code / desativar com senha) |
 | `/desenvolvedores/chaves` | Credenciais de API (segredo exibido **uma única vez**) com allowlist de IP e revogação |
 | `/desenvolvedores/webhooks` | Cadastro de webhooks: URL, header de validação e eventos (lista vinda de `GET /painel/webhooks/eventos`) |
-| `/desenvolvedores/integracoes` | Onboarding técnico: base URL + passos chave → webhook → primeira cobrança |
 | `/desenvolvedores/documentacao` | Referência da API pública (cobranças, saques, consulta, webhooks e eventos) |
 
 ### Área administrativa (JWT + permissão)

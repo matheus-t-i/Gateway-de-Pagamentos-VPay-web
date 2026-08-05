@@ -13,6 +13,8 @@ type MarcaProps = {
    */
   fundo?: 'auto' | 'claro' | 'escuro';
   className?: string;
+  /** Classes do `<img>` do wordmark (tamanho/alinhamento). */
+  imagemClassName?: string;
   /** Link opcional; `null` renderiza sem âncora. Default `/`. */
   href?: string | null;
   prioridade?: boolean;
@@ -86,6 +88,7 @@ export function Marca({
   compact = false,
   fundo = 'auto',
   className = '',
+  imagemClassName,
   href = '/',
   prioridade,
 }: MarcaProps) {
@@ -99,7 +102,7 @@ export function Marca({
       className="h-9 w-9 object-contain sm:h-10 sm:w-10"
     />
   ) : (
-    <Wordmark fundo={fundo} prioridade={prioridade} />
+    <Wordmark fundo={fundo} prioridade={prioridade} className={imagemClassName} />
   );
 
   const wrapperClass = `inline-flex items-center ${className}`.trim();

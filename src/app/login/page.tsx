@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Marca } from '@/components/marca';
+import { TextoRotulo } from '@/components/obrigatorio';
 import { useAuth } from '@/lib/auth';
 import { BRAND } from '@/lib/brand';
 import { salvarCredsOnboarding } from '@/lib/onboarding';
@@ -91,7 +92,13 @@ export default function LoginPage() {
           vem primeiro e este painel não aparece (mobile-first). */}
       <section className="hidden flex-col justify-between bg-ink-950 px-8 py-10 text-sand-50 lg:flex lg:min-h-screen lg:w-1/2 lg:px-16 lg:py-16">
         <div>
-          <Marca fundo="escuro" href={null} prioridade className="mb-1" />
+          <Marca
+            fundo="escuro"
+            href={null}
+            prioridade
+            className="mb-1 w-full justify-center"
+            imagemClassName="h-20 w-auto max-w-[18rem] object-contain object-center lg:h-24 lg:max-w-[22rem] xl:h-28 xl:max-w-[26rem]"
+          />
           <h1 className="mt-10 font-display text-3xl font-semibold leading-tight lg:text-5xl">
             Acesso seguro ao seu gateway de pagamentos
           </h1>
@@ -121,7 +128,12 @@ export default function LoginPage() {
       {/* Card de login (direita; no celular é a tela toda) */}
       <section className="flex flex-1 flex-col items-center justify-center bg-sand-50 px-4 py-10 dark:bg-ink-900 sm:px-6 lg:min-h-screen">
         {/* Marca — apenas mobile (desktop usa o painel institucional) */}
-        <Marca href={null} prioridade className="mb-6 lg:hidden" />
+        <Marca
+          href={null}
+          prioridade
+          className="mb-6 w-full justify-center lg:hidden"
+          imagemClassName="h-14 w-auto max-w-[16rem] object-contain object-center sm:h-16 sm:max-w-[18rem]"
+        />
         <div className="w-full max-w-md rounded-2xl border border-ink-800/10 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-ink-950 sm:p-8">
           <h2 className="text-center font-display text-3xl font-semibold">
             Acessar Conta
@@ -131,7 +143,7 @@ export default function LoginPage() {
           </p>
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             <label className="block text-sm">
-              E-mail
+              <TextoRotulo obrigatorio>E-mail</TextoRotulo>
               <input
                 className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
                 value={email}
@@ -142,7 +154,7 @@ export default function LoginPage() {
               />
             </label>
             <label className="block text-sm">
-              Senha
+              <TextoRotulo obrigatorio>Senha</TextoRotulo>
               <input
                 className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
                 value={senha}
@@ -154,7 +166,7 @@ export default function LoginPage() {
             </label>
             {precisa2FA && (
               <label className="block text-sm">
-                Código de verificação (2FA)
+                <TextoRotulo obrigatorio>Código de verificação (2FA)</TextoRotulo>
                 <input
                   className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-center font-mono text-lg tracking-[0.4em] dark:border-white/10 dark:bg-ink-900"
                   value={codigoTotp}

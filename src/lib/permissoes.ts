@@ -12,6 +12,8 @@
 export const PERMISSOES = {
   DASHBOARD_VER: 'dashboard.ver',
 
+  FATURAMENTO_VER: 'faturamento.ver',
+
   TRANSACOES_VER: 'transacoes.ver',
   TRANSACOES_CRIAR: 'transacoes.criar',
 
@@ -80,10 +82,10 @@ export type CodigoPermissao = (typeof PERMISSOES)[keyof typeof PERMISSOES];
  */
 export const PERMISSAO_POR_ROTA: Array<[string, CodigoPermissao]> = [
   ['/dashboard', PERMISSOES.DASHBOARD_VER],
+  ['/faturamento', PERMISSOES.FATURAMENTO_VER],
   ['/transacoes', PERMISSOES.TRANSACOES_VER],
   ['/adquirentes', PERMISSOES.ADQUIRENTES_VER],
   ['/desenvolvedores/chaves', PERMISSOES.CHAVES_API_VER],
-  ['/desenvolvedores/integracoes', PERMISSOES.CHAVES_API_VER],
   ['/desenvolvedores/webhooks', PERMISSOES.WEBHOOKS_VER],
   ['/admin/aprovacoes', PERMISSOES.ADMIN_APROVACOES_VER],
   ['/admin/usuarios', PERMISSOES.ADMIN_USUARIOS_VER],

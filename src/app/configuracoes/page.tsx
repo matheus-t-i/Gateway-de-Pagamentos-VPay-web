@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { Shell } from '@/components/shell';
+import { TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -132,7 +133,7 @@ function Seguranca() {
             </code>
           </p>
           <label className="block text-sm">
-            2. Digite o código de 6 dígitos gerado
+            <TextoRotulo obrigatorio>2. Digite o código de 6 dígitos gerado</TextoRotulo>
             <input
               className={`${inputCls} text-center font-mono text-lg tracking-[0.4em]`}
               value={codigo}
@@ -183,7 +184,7 @@ function Seguranca() {
             informe também o código.
           </p>
           <label className="block text-sm">
-            Senha
+            <TextoRotulo obrigatorio>Senha</TextoRotulo>
             <input
               className={inputCls}
               type="password"

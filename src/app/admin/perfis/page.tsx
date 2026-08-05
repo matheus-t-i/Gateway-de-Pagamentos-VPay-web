@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
 import { Modal, ModalAcoes } from '@/components/modal';
+import { TextoRotulo } from '@/components/obrigatorio';
 import {
   BarraFiltros,
   FiltroSelect,
@@ -388,7 +389,7 @@ function EditorPerfil({
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col text-xs font-medium opacity-70">
-            Nome do perfil
+            <TextoRotulo obrigatorio>Nome do perfil</TextoRotulo>
             <input
               required
               value={rascunho.nome}

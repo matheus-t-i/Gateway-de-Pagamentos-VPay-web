@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { Marca } from '@/components/marca';
+import { TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 
 export default function EsqueciSenhaPage() {
@@ -57,7 +58,7 @@ export default function EsqueciSenhaPage() {
           </p>
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             <label className="block text-sm">
-              E-mail
+              <TextoRotulo obrigatorio>E-mail</TextoRotulo>
               <input
                 className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
                 type="email"

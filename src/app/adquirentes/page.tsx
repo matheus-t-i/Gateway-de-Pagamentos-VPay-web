@@ -75,16 +75,22 @@ export default function AdquirentesClientePage() {
     );
   }, [adquirentes.data, busca, fMed]);
 
+  const ativa = useMemo(
+    () => (adquirentes.data ?? []).find((a) => a.emUso) ?? null,
+    [adquirentes.data],
+  );
+
   const colunas: Coluna<Adquirente>[] = [
     {
       chave: 'nome',
       titulo: 'Adquirente',
       render: (a) => (
-        <div>
+        <div className="flex items-center gap-2">
           <p className="font-medium">{a.nome}</p>
           {a.emUso && (
-            <span className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-              Em uso no PIX in
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+              Ativa
             </span>
           )}
         </div>
@@ -116,16 +122,20 @@ export default function AdquirentesClientePage() {
       chave: 'acao',
       titulo: '',
       render: (a) =>
-        a.emUso || !podeTrocar ? null : (
+        a.emUso ? (
+          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+            Em uso no PIX in
+          </span>
+        ) : !podeTrocar ? null : (
           <button
             type="button"
             onClick={() => {
               setErro(null);
               setEscolhida(a);
             }}
-            className="rounded-md border border-ink-800/15 px-3 py-1 text-xs font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+            className="rounded-md border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-medium text-accent transition hover:bg-accent/20"
           >
-            Usar no PIX in
+            Trocar para esta
           </button>
         ),
     },
@@ -136,11 +146,52 @@ export default function AdquirentesClientePage() {
       <div>
         <h1 className="font-display text-3xl font-semibold">Adquirentes</h1>
         <p className="mt-1 text-sm opacity-70">
-          Liquidantes liberadas para a sua conta. A adquirente marcada como
-          <strong> Em uso</strong> é a que gera os seus PIX de entrada; a troca
-          vale para as próximas cobranças e não altera as já criadas.
+          Liquidantes liberadas para a sua conta. A adquirente{' '}
+          <strong>ativa</strong> gera os seus PIX de entrada; a troca vale para
+          as próximas cobranças e não altera as já criadas.
         </p>
       </div>
+
+      {!adquirentes.isLoading && (
+        <div
+          className={`mt-6 rounded-xl border px-4 py-4 sm:px-5 ${
+            ativa
+              ? 'border-emerald-500/35 bg-emerald-500/10'
+              : 'border-amber-500/35 bg-amber-500/10'
+          }`}
+        >
+          {ativa ? (
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+                  Adquirente ativa (PIX in)
+                </p>
+                <p className="mt-1 font-display text-xl font-semibold">{ativa.nome}</p>
+                <p className="mt-1 text-xs opacity-70">
+                  MED: {ativa.temMed ? 'sim' : 'não'}
+                  {ativa.observacao ? ` · ${ativa.observacao}` : ''}
+                </p>
+              </div>
+              {podeTrocar && (
+                <p className="max-w-xs text-xs opacity-70 sm:text-right">
+                  Para trocar, escolha outra adquirente na lista e confirme.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                Nenhuma adquirente ativa
+              </p>
+              <p className="mt-1 text-sm opacity-80">
+                {podeTrocar
+                  ? 'Selecione uma adquirente na lista abaixo para usar no PIX in.'
+                  : 'Fale com o suporte para configurar a adquirente da sua conta.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-6">
         <BarraFiltros>

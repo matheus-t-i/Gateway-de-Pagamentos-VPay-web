@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Modal, ModalAcoes } from './modal';
+import { TextoRotulo } from './obrigatorio';
 
 const campo =
   'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900';
@@ -357,7 +358,7 @@ export function EditarAdquirenteModal({
           className="space-y-4"
         >
           <label className="block text-sm">
-            Nome interno
+            <TextoRotulo obrigatorio>Nome interno</TextoRotulo>
             <input className={campo} value={nome} onChange={(e) => setNome(e.target.value)} required />
           </label>
           <label className="block text-sm">
@@ -578,7 +579,7 @@ export function ClientesAdquirenteModal({
           className="flex items-end gap-2"
         >
           <label className="block flex-1 text-sm">
-            Liberar novo cliente (ID público)
+            <TextoRotulo obrigatorio>Liberar novo cliente (ID público)</TextoRotulo>
             <input
               className={campo}
               value={novo}
@@ -757,11 +758,11 @@ export function NovaAdquirenteModal({
         className="space-y-4"
       >
         <label className="block text-sm">
-          Código
+          <TextoRotulo obrigatorio>Código</TextoRotulo>
           <input className={campo} value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="ex.: sparc" required />
         </label>
         <label className="block text-sm">
-          Nome
+          <TextoRotulo obrigatorio>Nome</TextoRotulo>
           <input className={campo} value={nome} onChange={(e) => setNome(e.target.value)} required />
         </label>
         <div className="flex gap-4 text-sm">

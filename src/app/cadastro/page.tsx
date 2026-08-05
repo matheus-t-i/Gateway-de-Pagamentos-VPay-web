@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Marca } from '@/components/marca';
+import { Obrigatorio, TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 import { CONTRATO_INTERMEDIACAO, TERMOS_USO, type DocumentoLegal } from '@/lib/legal';
 import {
@@ -190,7 +191,7 @@ export default function CadastroPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
-            {isPJ ? 'CNPJ' : 'CPF'}
+            <TextoRotulo obrigatorio>{isPJ ? 'CNPJ' : 'CPF'}</TextoRotulo>
             <input
               className={inputCls}
               value={cpfCnpj}
@@ -216,7 +217,7 @@ export default function CadastroPage() {
         </div>
 
         <label className="block text-sm">
-          {isPJ ? 'Razão social' : 'Nome completo'}
+          <TextoRotulo obrigatorio>{isPJ ? 'Razão social' : 'Nome completo'}</TextoRotulo>
           <input
             className={inputCls}
             value={nome}
@@ -239,7 +240,7 @@ export default function CadastroPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
-            E-mail
+            <TextoRotulo obrigatorio>E-mail</TextoRotulo>
             <input
               className={inputCls}
               value={email}
@@ -249,7 +250,7 @@ export default function CadastroPage() {
             />
           </label>
           <label className="block text-sm">
-            Senha
+            <TextoRotulo obrigatorio>Senha</TextoRotulo>
             <input
               className={inputCls}
               value={senha}
@@ -272,7 +273,7 @@ export default function CadastroPage() {
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <label className="block text-sm">
-                CPF do responsável
+                <TextoRotulo obrigatorio>CPF do responsável</TextoRotulo>
                 <input
                   className={inputCls}
                   value={respCpf}
@@ -283,7 +284,7 @@ export default function CadastroPage() {
                 />
               </label>
               <label className="block text-sm">
-                Nome do responsável
+                <TextoRotulo obrigatorio>Nome do responsável</TextoRotulo>
                 <input
                   className={inputCls}
                   value={respNome}
@@ -301,7 +302,7 @@ export default function CadastroPage() {
           <h2 className="text-sm font-semibold">Endereço completo</h2>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
             <label className="block text-sm">
-              CEP
+              <TextoRotulo obrigatorio>CEP</TextoRotulo>
               <input
                 className={inputCls}
                 value={endereco.cep}
@@ -314,7 +315,7 @@ export default function CadastroPage() {
               />
             </label>
             <label className="block text-sm sm:col-span-2">
-              Logradouro
+              <TextoRotulo obrigatorio>Logradouro</TextoRotulo>
               <input
                 className={inputCls}
                 value={endereco.logradouro}
@@ -327,7 +328,7 @@ export default function CadastroPage() {
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <label className="block text-sm">
-              Número
+              <TextoRotulo obrigatorio>Número</TextoRotulo>
               <input
                 className={inputCls}
                 value={endereco.numero}
@@ -348,7 +349,7 @@ export default function CadastroPage() {
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <label className="block text-sm">
-              Bairro
+              <TextoRotulo obrigatorio>Bairro</TextoRotulo>
               <input
                 className={inputCls}
                 value={endereco.bairro}
@@ -357,7 +358,7 @@ export default function CadastroPage() {
               />
             </label>
             <label className="block text-sm">
-              Cidade
+              <TextoRotulo obrigatorio>Cidade</TextoRotulo>
               <input
                 className={inputCls}
                 value={endereco.cidade}
@@ -366,7 +367,7 @@ export default function CadastroPage() {
               />
             </label>
             <label className="block text-sm">
-              UF
+              <TextoRotulo obrigatorio>UF</TextoRotulo>
               <input
                 className={inputCls}
                 value={endereco.uf}
@@ -380,7 +381,7 @@ export default function CadastroPage() {
             </label>
           </div>
           <label className="mt-4 block text-sm">
-            Média de faturamento mensal (R$)
+            <TextoRotulo obrigatorio>Média de faturamento mensal (R$)</TextoRotulo>
             <input
               className={inputCls}
               value={faturamento}
@@ -415,6 +416,7 @@ export default function CadastroPage() {
               >
                 Termos de Uso e Política de Privacidade
               </button>
+              <Obrigatorio />
             </span>
           </label>
           <label className="mt-3 flex items-start gap-2 text-sm">
@@ -433,6 +435,7 @@ export default function CadastroPage() {
               >
                 Contrato de Intermediação de Pagamentos
               </button>
+              <Obrigatorio />
             </span>
           </label>
           {!(aceiteTermos && aceiteContrato) && (

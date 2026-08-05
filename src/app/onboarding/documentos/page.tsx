@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Marca } from '@/components/marca';
+import { TextoRotulo } from '@/components/obrigatorio';
 import { api, apiUpload } from '@/lib/api';
 import { BRAND } from '@/lib/brand';
 import {
@@ -166,7 +167,7 @@ export default function OnboardingDocumentosPage() {
             envio dos documentos.
           </p>
           <label className="block text-sm">
-            E-mail
+            <TextoRotulo obrigatorio>E-mail</TextoRotulo>
             <input
               className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
               type="email"
@@ -176,7 +177,7 @@ export default function OnboardingDocumentosPage() {
             />
           </label>
           <label className="block text-sm">
-            Senha
+            <TextoRotulo obrigatorio>Senha</TextoRotulo>
             <input
               className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
               type="password"

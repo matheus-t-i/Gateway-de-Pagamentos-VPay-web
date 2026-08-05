@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Marca } from '@/components/marca';
+import { TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 
 function Formulario() {
@@ -70,7 +71,7 @@ function Formulario() {
       <p className="mt-2 text-sm opacity-70">Escolha uma nova senha para sua conta.</p>
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <label className="block text-sm">
-          Nova senha
+          <TextoRotulo obrigatorio>Nova senha</TextoRotulo>
           <input
             className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
             type="password"
@@ -81,7 +82,7 @@ function Formulario() {
           />
         </label>
         <label className="block text-sm">
-          Confirme a nova senha
+          <TextoRotulo obrigatorio>Confirme a nova senha</TextoRotulo>
           <input
             className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900"
             type="password"

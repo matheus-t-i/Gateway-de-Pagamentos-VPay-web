@@ -20,12 +20,12 @@ import {
   LifeBuoy,
   LineChart,
   Menu,
-  Puzzle,
   ScrollText,
   Server,
   Settings2,
   ShieldAlert,
   ShieldCheck,
+  Trophy,
   Users,
   Wallet,
   Webhook,
@@ -60,6 +60,7 @@ const GRUPOS: NavGrupo[] = [
     titulo: 'Operação',
     links: [
       { href: '/dashboard', label: 'Dashboard', icone: LayoutDashboard },
+      { href: '/faturamento', label: 'Faturamento', icone: Trophy },
       { href: '/transacoes', label: 'Transações', icone: ArrowLeftRight },
     ],
   },
@@ -79,7 +80,6 @@ const GRUPOS: NavGrupo[] = [
         children: [
           { href: '/desenvolvedores/chaves', label: 'Chaves de API', icone: KeyRound },
           { href: '/desenvolvedores/webhooks', label: 'Webhooks', icone: Webhook },
-          { href: '/desenvolvedores/integracoes', label: 'Integrações', icone: Puzzle },
           { href: '/desenvolvedores/documentacao', label: 'Documentação', icone: BookOpen },
         ],
       },
@@ -276,7 +276,7 @@ function Navegacao({ onNavegar }: { onNavegar?: () => void }) {
   const grupos = filtrarNavegacao(pode);
 
   return (
-    <nav className="mt-8 flex-1 space-y-6 overflow-y-auto pb-4">
+    <nav className="mt-3 flex-1 space-y-6 overflow-y-auto pb-4 lg:mt-4">
       {grupos.map((g) => (
         <div key={g.titulo}>
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] opacity-40">
@@ -318,14 +318,18 @@ function PainelLateral({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-start justify-between gap-2">
-        <Marca href="/dashboard" className="px-1" />
+      <div className="relative mb-0 flex items-center justify-center px-0 py-0">
+        <Marca
+          href="/dashboard"
+          className="justify-center"
+          imagemClassName="h-11 w-auto max-w-[12rem] object-contain object-center sm:h-12 lg:h-16 lg:max-w-full"
+        />
         {onFechar && (
           <button
             type="button"
             aria-label="Fechar menu"
             onClick={onFechar}
-            className="rounded-lg p-1.5 opacity-60 transition hover:bg-ink-800/5 hover:opacity-100 dark:hover:bg-white/5"
+            className="absolute right-0 top-0 rounded-lg p-1.5 opacity-60 transition hover:bg-ink-800/5 hover:opacity-100 dark:hover:bg-white/5"
           >
             <X className="h-4 w-4" strokeWidth={1.75} />
           </button>

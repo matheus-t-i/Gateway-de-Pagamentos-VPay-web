@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Modal, ModalAcoes } from './modal';
+import { TextoRotulo } from './obrigatorio';
 
 const campo =
   'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900';
@@ -180,7 +181,7 @@ export function GatilhoModal({
       >
         {!editando && (
           <label className={rotulo}>
-            Adquirente / conta
+            <TextoRotulo obrigatorio>Adquirente / conta</TextoRotulo>
             <select
               className={campo}
               value={form.contaProvedorId}
@@ -199,7 +200,7 @@ export function GatilhoModal({
         )}
 
         <label className={rotulo}>
-          Nome do gatilho
+          <TextoRotulo obrigatorio>Nome do gatilho</TextoRotulo>
           <input
             className={campo}
             value={form.nome}
@@ -211,7 +212,7 @@ export function GatilhoModal({
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className={rotulo}>
-            Dispara com saldo de (R$)
+            <TextoRotulo obrigatorio>Dispara com saldo de (R$)</TextoRotulo>
             <input
               className={campo}
               type="number"
@@ -273,7 +274,7 @@ export function GatilhoModal({
             </select>
           </label>
           <label className={rotulo}>
-            Chave PIX de destino
+            <TextoRotulo obrigatorio>Chave PIX de destino</TextoRotulo>
             <input
               className={campo}
               value={form.chavePix}
