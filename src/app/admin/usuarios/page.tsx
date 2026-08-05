@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
 import {
@@ -11,7 +12,6 @@ import {
   SeletorPorPagina,
   TabelaPaginada,
 } from '@/components/tabela';
-import { EditarUsuarioModal } from '@/components/usuario-modal';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
@@ -24,7 +24,6 @@ type Usuario = {
   tipoPessoa: string | null;
   situacao: string;
   papeis: string[];
-  empresas: Array<{ idPublico: string; razaoSocial: string; situacao: string }>;
 };
 type Resposta = { pagina: number; limite: number; total: number; itens: Usuario[] };
 
@@ -51,7 +50,6 @@ export default function UsuariosAdminPage() {
   const [fSituacao, setFSituacao] = useState('');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState(10);
-  const [editando, setEditando] = useState<{ idPublico: string; nome: string; situacao: string } | null>(null);
 
   const reset = () => setPagina(1);
 
@@ -88,18 +86,16 @@ export default function UsuariosAdminPage() {
         </span>
       ),
     },
-    { chave: 'empresas', titulo: 'Empresas', render: (u) => u.empresas.length },
     {
       chave: 'editar',
       titulo: '',
       render: (u) => (
-        <button
-          type="button"
-          onClick={() => setEditando({ idPublico: u.idPublico, nome: u.nome, situacao: u.situacao })}
-          className="rounded-md border border-ink-800/15 px-3 py-1 text-xs font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+        <Link
+          href={`/admin/usuarios/${u.idPublico}`}
+          className="inline-block rounded-md border border-ink-800/15 px-3 py-1 text-xs font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
         >
           Editar
-        </button>
+        </Link>
       ),
     },
   ];
@@ -139,10 +135,6 @@ export default function UsuariosAdminPage() {
           onPagina={setPagina}
         />
       </div>
-
-      {token && (
-        <EditarUsuarioModal usuario={editando} token={token} onClose={() => setEditando(null)} />
-      )}
     </Shell>
   );
 }

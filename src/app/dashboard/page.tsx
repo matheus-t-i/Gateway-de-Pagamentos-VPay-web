@@ -14,7 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import { Shell } from '@/components/shell';
-import { EmpresaAcoes, SaqueModal } from '@/components/empresa-acoes';
+import { ContaAcoes, SaqueModal } from '@/components/conta-acoes';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -39,14 +39,13 @@ type Painel = {
     cliente: string;
     clienteEmail: string | null;
     produto: string;
-    empresa: string;
     valor: string;
     situacao: string;
     criadoEm: string;
   }>;
-  empresas: Array<{
+  conta: {
     idPublico: string;
-    razaoSocial: string;
+    nome: string;
     situacao: string;
     saldo: {
       disponivel: string;
@@ -54,7 +53,7 @@ type Painel = {
       reservado: string;
       bloqueadoMed: string;
     } | null;
-  }>;
+  };
 };
 
 const brl = (v: string | number) =>
@@ -101,7 +100,7 @@ function Cartao({
 }
 
 export default function DashboardPage() {
-  const { token, usuario, empresaId } = useAuth();
+  const { token, usuario } = useAuth();
   const isAdmin = usuario?.papeis.includes('ADMINISTRADOR');
   const [range, setRange] = useState<string>('1d');
   const [mostrarSaldo, setMostrarSaldo] = useState(true);
@@ -119,7 +118,7 @@ export default function DashboardPage() {
     queryFn: () =>
       api<{
         usuarios: number;
-        empresasAtivas: number;
+        clientesAtivos: number;
         transacoes: number;
         volumeBruto: string;
         serie: Array<{ dia: string; volume: string }>;
@@ -134,10 +133,7 @@ export default function DashboardPage() {
       aprovadas: Number(s.aprovadas),
     })) ?? [];
 
-  const empresaSaque =
-    empresaId ??
-    d?.empresas.find((e) => e.situacao === 'ATIVA')?.idPublico ??
-    null;
+  const contaAtiva = d?.conta.situacao === 'ATIVO';
 
   return (
     <Shell>
@@ -217,7 +213,7 @@ export default function DashboardPage() {
           </p>
           <button
             type="button"
-            disabled={!empresaSaque}
+            disabled={!contaAtiva}
             onClick={() => setSaqueAberto(true)}
             className="mt-4 rounded-lg bg-black/10 px-4 py-2 text-sm font-medium transition hover:bg-black/15 disabled:opacity-50"
           >
@@ -323,46 +319,39 @@ export default function DashboardPage() {
         </div>
       </Cartao>
 
-      {/* ===== Minhas empresas (ações: depositar / sacar / credencial) ===== */}
-      {!!d?.empresas.length && (
+      {/* ===== Minha conta (ações: depositar / sacar / credencial) ===== */}
+      {d?.conta && (
         <section className="mt-8">
           <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
-            Minhas empresas
+            Minha conta
           </h2>
-          <ul className="mt-3 space-y-2">
-            {d.empresas.map((e) => (
-              <li
-                key={e.idPublico}
-                className="rounded-xl border border-ink-800/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-ink-900"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium">{e.razaoSocial}</span>
-                  <span className="text-xs opacity-60">{e.situacao}</span>
+          <div className="mt-3 rounded-xl border border-ink-800/10 bg-white px-4 py-3 dark:border-white/10 dark:bg-ink-900">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-medium">{d.conta.nome}</span>
+              <span className="text-xs opacity-60">{d.conta.situacao}</span>
+            </div>
+            {d.conta.saldo && (
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                <div>
+                  <p className="text-xs opacity-60">Disponível</p>
+                  <p className="font-medium">{brl(d.conta.saldo.disponivel)}</p>
                 </div>
-                {e.saldo && (
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                    <div>
-                      <p className="text-xs opacity-60">Disponível</p>
-                      <p className="font-medium">{brl(e.saldo.disponivel)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs opacity-60">A liberar</p>
-                      <p className="font-medium">{brl(e.saldo.pendente)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs opacity-60">Reservado</p>
-                      <p className="font-medium">{brl(e.saldo.reservado)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs opacity-60">Bloqueado MED</p>
-                      <p className="font-medium">{brl(e.saldo.bloqueadoMed)}</p>
-                    </div>
-                  </div>
-                )}
-                <EmpresaAcoes empresaIdPublico={e.idPublico} ativa={e.situacao === 'ATIVA'} />
-              </li>
-            ))}
-          </ul>
+                <div>
+                  <p className="text-xs opacity-60">A liberar</p>
+                  <p className="font-medium">{brl(d.conta.saldo.pendente)}</p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-60">Reservado</p>
+                  <p className="font-medium">{brl(d.conta.saldo.reservado)}</p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-60">Bloqueado MED</p>
+                  <p className="font-medium">{brl(d.conta.saldo.bloqueadoMed)}</p>
+                </div>
+              </div>
+            )}
+            <ContaAcoes ativa={contaAtiva} />
+          </div>
         </section>
       )}
 
@@ -378,8 +367,8 @@ export default function DashboardPage() {
               <p className="mt-2 font-display text-2xl">{admin.data.usuarios}</p>
             </Cartao>
             <Cartao>
-              <p className="text-xs uppercase tracking-wide opacity-60">Empresas ativas</p>
-              <p className="mt-2 font-display text-2xl">{admin.data.empresasAtivas}</p>
+              <p className="text-xs uppercase tracking-wide opacity-60">Clientes ativos</p>
+              <p className="mt-2 font-display text-2xl">{admin.data.clientesAtivos}</p>
             </Cartao>
             <Cartao>
               <p className="text-xs uppercase tracking-wide opacity-60">Transações</p>
@@ -413,11 +402,10 @@ export default function DashboardPage() {
       )}
 
       {/* Modal de saque a partir do card hero */}
-      {empresaSaque && token && (
+      {contaAtiva && token && (
         <SaqueModal
           open={saqueAberto}
           onClose={() => setSaqueAberto(false)}
-          empresaIdPublico={empresaSaque}
           token={token}
         />
       )}

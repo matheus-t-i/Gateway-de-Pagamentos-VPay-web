@@ -2,7 +2,6 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { Shell } from '@/components/shell';
 import {
   BarraFiltros,
@@ -13,6 +12,7 @@ import {
 } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PERMISSOES } from '@/lib/permissoes';
 
 /** Extrai a mensagem legível do erro devolvido pela API (JSON ou texto). */
 function erroMsg(e: unknown) {
@@ -42,7 +42,9 @@ type Webhook = {
 };
 
 export default function WebhooksPage() {
-  const { token, empresaId } = useAuth();
+  const { token, pode } = useAuth();
+  const podeCriar = pode(PERMISSOES.WEBHOOKS_CRIAR);
+  const podeExcluir = pode(PERMISSOES.WEBHOOKS_EXCLUIR);
   const qc = useQueryClient();
   const [nome, setNome] = useState('');
   const [url, setUrl] = useState('');
@@ -65,14 +67,14 @@ export default function WebhooksPage() {
   const selecionados = eventos.length ? eventos : todosEventos;
 
   const webhooks = useQuery({
-    queryKey: ['webhooks', empresaId],
-    enabled: !!token && !!empresaId,
-    queryFn: () => api<Webhook[]>(`/painel/webhooks/${empresaId}`, { token: token! }),
+    queryKey: ['webhooks'],
+    enabled: !!token,
+    queryFn: () => api<Webhook[]>('/painel/webhooks', { token: token! }),
   });
 
   const criar = useMutation({
     mutationFn: () =>
-      api(`/painel/webhooks/${empresaId}`, {
+      api('/painel/webhooks', {
         token: token!,
         method: 'POST',
         body: JSON.stringify({
@@ -91,15 +93,15 @@ export default function WebhooksPage() {
       setNomeHeader('');
       setSegredo('');
       setErro(null);
-      void qc.invalidateQueries({ queryKey: ['webhooks', empresaId] });
+      void qc.invalidateQueries({ queryKey: ['webhooks'] });
     },
     onError: (e) => setErro(erroMsg(e)),
   });
 
   const remover = useMutation({
     mutationFn: (id: string) =>
-      api(`/painel/webhooks/${empresaId}/${id}`, { token: token!, method: 'DELETE' }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['webhooks', empresaId] }),
+      api(`/painel/webhooks/${id}`, { token: token!, method: 'DELETE' }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['webhooks'] }),
   });
 
   function toggleEvento(ev: string) {
@@ -173,16 +175,17 @@ export default function WebhooksPage() {
       chave: 'acoes',
       titulo: 'Ações',
       className: 'text-right',
-      render: (w) => (
-        <button
-          type="button"
-          onClick={() => remover.mutate(w.id)}
-          disabled={remover.isPending}
-          className="text-xs text-red-600 underline disabled:opacity-50"
-        >
-          Remover
-        </button>
-      ),
+      render: (w) =>
+        podeExcluir ? (
+          <button
+            type="button"
+            onClick={() => remover.mutate(w.id)}
+            disabled={remover.isPending}
+            className="text-xs text-red-600 underline disabled:opacity-50"
+          >
+            Remover
+          </button>
+        ) : null,
     },
   ];
 
@@ -193,20 +196,10 @@ export default function WebhooksPage() {
         Receba callbacks quando suas transações mudarem de status.
       </p>
 
-      {!empresaId && (
-        <div className="mt-8 rounded-lg border border-dashed border-ink-800/20 p-6 text-sm opacity-70 dark:border-white/20">
-          Selecione uma empresa em{' '}
-          <Link href="/empresas" className="text-accent underline">
-            Empresas
-          </Link>{' '}
-          para configurar webhooks.
-        </div>
-      )}
 
-      {empresaId && (
-        <>
           <form
             onSubmit={onCriar}
+            hidden={!podeCriar}
             className="mt-6 rounded-lg border border-ink-800/10 p-4 dark:border-white/10"
           >
             <h2 className="text-sm font-semibold">Novo webhook</h2>
@@ -318,8 +311,6 @@ export default function WebhooksPage() {
               vazio="Nenhum webhook configurado."
             />
           </div>
-        </>
-      )}
     </Shell>
   );
 }

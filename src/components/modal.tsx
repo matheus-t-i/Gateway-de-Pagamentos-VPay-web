@@ -6,16 +6,25 @@ import { ReactNode, useEffect } from 'react';
  * Modal mobile-first: no celular sobe de baixo (bottom sheet), no desktop
  * centraliza. Fecha no ESC, no backdrop e no X.
  */
+const LARGURAS = {
+  md: 'max-w-md',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+} as const;
+
 export function Modal({
   open,
   onClose,
   title,
   children,
+  largura = 'md',
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** `lg`/`xl` para formulários largos (ex.: matriz de permissões). */
+  largura?: keyof typeof LARGURAS;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -36,7 +45,7 @@ export function Modal({
       aria-modal="true"
     >
       <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-ink-900 sm:rounded-2xl"
+        className={`max-h-[90vh] w-full ${LARGURAS[largura]} overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-ink-900 sm:rounded-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-4">

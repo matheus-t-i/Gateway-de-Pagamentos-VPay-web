@@ -10,15 +10,29 @@ import {
 } from 'react';
 import { useTheme } from 'next-themes';
 import { api } from './api';
+import type { CodigoPermissao } from './permissoes';
 
 type Usuario = {
   idPublico: string;
   email: string;
+  cpfCnpj?: string;
   nomeRazaoSocial: string;
+  nomeFantasia?: string | null;
+  telefone?: string | null;
+  situacao?: string;
   temaPreferido: 'PADRAO' | 'CLARO' | 'ESCURO';
   papeis: string[];
+  /** Permissões efetivas dos perfis de acesso do usuário. */
+  permissoes?: string[];
   tipoPessoa?: 'PF' | 'PJ';
   totpHabilitado?: boolean;
+  /** Carteira da conta — o usuário É a conta, então o saldo vem junto. */
+  saldo?: {
+    disponivel: string;
+    pendenteLiberacao: string;
+    reservado: string;
+    bloqueadoMed: string;
+  } | null;
 };
 
 export type LoginResult = {
@@ -28,19 +42,23 @@ export type LoginResult = {
   motivo?: string | null;
   /** true quando a conta tem 2FA e o código ainda não foi informado. */
   requer2FA?: boolean;
-  empresaIdPublico?: string | null;
-  documentosFaltantes?: { usuario: string[]; empresa: string[] };
+  documentosFaltantes?: string[];
 };
 
 type AuthState = {
   token: string | null;
   usuario: Usuario | null;
-  empresaId: string | null;
+  /** Instante (epoch ms) em que o token expira, lido do `exp` do próprio JWT. */
+  expiraEm: number | null;
   /** true enquanto o token ainda está sendo lido do localStorage. */
   hidratando: boolean;
+  /**
+   * Permissão concedida pelo perfil de acesso. Serve para esconder menu e
+   * botões — a barreira real é o 403 da API, que não depende disto.
+   */
+  pode: (codigo: CodigoPermissao) => boolean;
   login: (email: string, senha: string, codigoTotp?: string) => Promise<LoginResult>;
   logout: () => void;
-  setEmpresaId: (id: string | null) => void;
   refreshMe: () => Promise<void>;
   patchTema: (tema: Usuario['temaPreferido']) => Promise<void>;
 };
@@ -53,10 +71,26 @@ function mapTema(tema: Usuario['temaPreferido']): string {
   return 'system';
 }
 
+/**
+ * Lê o `exp` do JWT (epoch ms). Sem verificar assinatura de propósito: isto é
+ * só para mostrar o contador na tela e encerrar a sessão na hora certa — quem
+ * valida o token de verdade é a API.
+ */
+function expiracaoDoToken(token: string): number | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const exp = (JSON.parse(json) as { exp?: number }).exp;
+    return typeof exp === 'number' ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
-  const [empresaId, setEmpresaId] = useState<string | null>(null);
   /**
    * true até o token ser lido do localStorage. Sem isso, no primeiro render de
    * um carregamento completo o token é null e as telas redirecionam para o
@@ -67,25 +101,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const t = localStorage.getItem('vpay_token');
-    const e = localStorage.getItem('vpay_empresa');
     if (t) setToken(t);
-    if (e) setEmpresaId(e);
     setHidratando(false);
   }, []);
 
   const refreshMe = useCallback(async () => {
     if (!token) return;
-    const me = await api<Usuario & { empresas?: Array<{ idPublico: string }> }>(
-      '/auth/me',
-      { token },
-    );
+    const me = await api<Usuario>('/auth/me', { token });
     setUsuario(me);
     setTheme(mapTema(me.temaPreferido));
-    if (!empresaId && me.empresas?.[0]) {
-      setEmpresaId(me.empresas[0].idPublico);
-      localStorage.setItem('vpay_empresa', me.empresas[0].idPublico);
-    }
-  }, [token, empresaId, setTheme]);
+  }, [token, setTheme]);
 
   useEffect(() => {
     if (token) void refreshMe().catch(() => logout());
@@ -118,11 +143,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem('vpay_token');
-    localStorage.removeItem('vpay_empresa');
     setToken(null);
     setUsuario(null);
-    setEmpresaId(null);
   }, []);
+
+  const expiraEm = useMemo(() => (token ? expiracaoDoToken(token) : null), [token]);
+
+  /**
+   * Encerra a sessão sozinho quando o token expira. Sem isto o painel continua
+   * na tela com um token morto e o usuário só descobre no primeiro 401 — que,
+   * dependendo da tela, aparece como "erro ao carregar" em vez de "sessão
+   * expirada". Também cobre o token já vencido guardado no localStorage.
+   */
+  useEffect(() => {
+    if (!expiraEm) return;
+    const restante = expiraEm - Date.now();
+    if (restante <= 0) {
+      logout();
+      return;
+    }
+    const id = setTimeout(logout, restante);
+    return () => clearTimeout(id);
+  }, [expiraEm, logout]);
 
   const patchTema = useCallback(
     async (tema: Usuario['temaPreferido']) => {
@@ -141,23 +183,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [token, setTheme],
   );
 
+  const pode = useCallback(
+    (codigo: CodigoPermissao) => usuario?.permissoes?.includes(codigo) ?? false,
+    [usuario],
+  );
+
   const value = useMemo(
     () => ({
       token,
       usuario,
-      empresaId,
+      expiraEm,
       hidratando,
+      pode,
       login,
       logout,
-      setEmpresaId: (id: string | null) => {
-        setEmpresaId(id);
-        if (id) localStorage.setItem('vpay_empresa', id);
-        else localStorage.removeItem('vpay_empresa');
-      },
       refreshMe,
       patchTema,
     }),
-    [token, usuario, empresaId, hidratando, login, logout, refreshMe, patchTema],
+    [
+      token,
+      usuario,
+      expiraEm,
+      hidratando,
+      pode,
+      login,
+      logout,
+      refreshMe,
+      patchTema,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

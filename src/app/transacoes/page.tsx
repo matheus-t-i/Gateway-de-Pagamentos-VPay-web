@@ -38,21 +38,12 @@ const colunas: Coluna<Tx>[] = [
 ];
 
 export default function TransacoesPage() {
-  const { token, empresaId, setEmpresaId } = useAuth();
-  const empresas = useQuery({
-    queryKey: ['empresas'],
-    enabled: !!token,
-    queryFn: () =>
-      api<Array<{ idPublico: string; razaoSocial: string }>>('/empresas', {
-        token: token!,
-      }),
-  });
+  const { token } = useAuth();
 
   const txs = useQuery({
-    queryKey: ['transacoes', empresaId],
-    enabled: !!token && !!empresaId,
-    queryFn: () =>
-      api<Tx[]>('/painel/transacoes', { token: token!, empresaId: empresaId! }),
+    queryKey: ['transacoes'],
+    enabled: !!token,
+    queryFn: () => api<Tx[]>('/painel/transacoes', { token: token! }),
   });
 
   const [fSituacao, setFSituacao] = useState('');
@@ -79,28 +70,12 @@ export default function TransacoesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold">Transações</h1>
-          <p className="mt-1 text-sm opacity-70">Listagem por empresa selecionada.</p>
+          <p className="mt-1 text-sm opacity-70">Movimentações da sua conta.</p>
         </div>
-        <label className="text-sm">
-          Empresa
-          <select
-            className="ml-2 rounded border border-ink-800/15 bg-white px-2 py-1 dark:border-white/10 dark:bg-ink-900"
-            value={empresaId ?? ''}
-            onChange={(e) => setEmpresaId(e.target.value || null)}
-          >
-            <option value="">Selecione</option>
-            {empresas.data?.map((e) => (
-              <option key={e.idPublico} value={e.idPublico}>
-                {e.razaoSocial}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
       <div className="mt-6">
-        {empresaId && (
-          <BarraFiltros>
+        <BarraFiltros>
             <FiltroSelect label="Situação" value={fSituacao} onChange={setFSituacao}>
               <option value="">Todas</option>
               {situacoes.map((s) => (
@@ -115,28 +90,27 @@ export default function TransacoesPage() {
               <option value="SAIDA">Saída</option>
             </FiltroSelect>
             <FiltroTexto label="Buscar por ID" value={busca} onChange={setBusca} placeholder="idTransacao" />
-            {(fSituacao || fDirecao || busca) && (
-              <button
-                type="button"
-                className="text-sm text-accent underline"
-                onClick={() => {
-                  setFSituacao('');
-                  setFDirecao('');
-                  setBusca('');
-                }}
-              >
-                Limpar
-              </button>
-            )}
-          </BarraFiltros>
-        )}
+          {(fSituacao || fDirecao || busca) && (
+            <button
+              type="button"
+              className="text-sm text-accent underline"
+              onClick={() => {
+                setFSituacao('');
+                setFDirecao('');
+                setBusca('');
+              }}
+            >
+              Limpar
+            </button>
+          )}
+        </BarraFiltros>
 
         <TabelaPaginada
           colunas={colunas}
           dados={filtradas}
           chave={(t) => t.idTransacao}
           carregando={txs.isLoading}
-          vazio={empresaId ? 'Nenhuma transação para os filtros.' : 'Selecione uma empresa.'}
+          vazio="Nenhuma transação para os filtros."
           tamanhoPagina={10}
         />
       </div>

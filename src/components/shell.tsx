@@ -2,21 +2,22 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ComponentType } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 import {
   ArrowDownToLine,
   ArrowLeftRight,
   ArrowUpFromLine,
+  Banknote,
   BookOpen,
-  Building2,
   ChevronRight,
   ClipboardCheck,
+  Clock,
   Code2,
   KeyRound,
   Landmark,
   Layers,
   LayoutDashboard,
+  LifeBuoy,
   LineChart,
   Menu,
   Puzzle,
@@ -24,6 +25,7 @@ import {
   Server,
   Settings2,
   ShieldAlert,
+  ShieldCheck,
   Users,
   Wallet,
   Webhook,
@@ -31,8 +33,8 @@ import {
   type LucideProps,
 } from 'lucide-react';
 import { Marca } from '@/components/marca';
-import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { permissaoDaRota, type CodigoPermissao } from '@/lib/permissoes';
 
 type Icone = ComponentType<LucideProps>;
 
@@ -42,14 +44,16 @@ type NavItem =
   | { label: string; icone: Icone; children: NavLink[] };
 type NavGrupo = {
   titulo: string;
-  somenteAdmin?: boolean;
   links: NavItem[];
 };
 
 /**
  * Navegação agrupada por domínio. Submenus colapsáveis reduzem ruído visual.
- * O administrador também é cliente: vê todos os grupos; Administrador só com
- * papel ADMINISTRADOR.
+ *
+ * O que aparece é decidido pelo PERFIL DE ACESSO: cada link é filtrado pela
+ * permissão de leitura da sua tela (`permissaoDaRota`), e grupo/submenu que
+ * ficam sem nenhum filho somem. Links sem permissão mapeada (Configurações,
+ * Documentação) são conta própria e ficam sempre visíveis.
  */
 const GRUPOS: NavGrupo[] = [
   {
@@ -62,7 +66,7 @@ const GRUPOS: NavGrupo[] = [
   {
     titulo: 'Conta',
     links: [
-      { href: '/empresas', label: 'Empresas', icone: Building2 },
+      { href: '/adquirentes', label: 'Adquirentes', icone: Landmark },
       { href: '/configuracoes', label: 'Configurações', icone: Settings2 },
     ],
   },
@@ -83,7 +87,6 @@ const GRUPOS: NavGrupo[] = [
   },
   {
     titulo: 'Administrador',
-    somenteAdmin: true,
     links: [
       {
         label: 'Pendências',
@@ -96,13 +99,16 @@ const GRUPOS: NavGrupo[] = [
       {
         label: 'Pessoas',
         icone: Users,
-        children: [{ href: '/admin/usuarios', label: 'Usuários', icone: Users }],
+        children: [
+          { href: '/admin/usuarios', label: 'Usuários', icone: Users },
+          { href: '/admin/perfis', label: 'Perfis de acesso', icone: ShieldCheck },
+        ],
       },
       {
         label: 'Financeiro',
         icone: Wallet,
         children: [
-          { href: '/admin/saldos', label: 'Saldos e saques', icone: Wallet },
+          { href: '/admin/carteiras', label: 'Carteiras dos clientes', icone: Wallet },
           { href: '/admin/relatorios/cash-in', label: 'Cash-in', icone: ArrowDownToLine },
           { href: '/admin/relatorios/cash-out', label: 'Cash-out', icone: ArrowUpFromLine },
           {
@@ -112,12 +118,20 @@ const GRUPOS: NavGrupo[] = [
           },
         ],
       },
+      {
+        label: 'Adquirentes',
+        icone: Landmark,
+        children: [
+          { href: '/admin/adquirentes', label: 'Cadastro Adquirentes', icone: Landmark },
+          { href: '/admin/saldos', label: 'Saldos Adquirentes', icone: Banknote },
+          { href: '/admin/contingencia', label: 'Contingência', icone: LifeBuoy },
+        ],
+      },
       { href: '/admin/med', label: 'MED', icone: ShieldAlert },
       {
         label: 'Plataforma',
         icone: Server,
         children: [
-          { href: '/admin/adquirentes', label: 'Adquirentes', icone: Landmark },
           { href: '/admin/filas', label: 'Filas', icone: Layers },
           { href: '/admin/auditoria', label: 'Auditoria', icone: ScrollText },
         ],
@@ -125,6 +139,26 @@ const GRUPOS: NavGrupo[] = [
     ],
   },
 ];
+
+/** Filtra a navegação pelas permissões do perfil, removendo grupos vazios. */
+function filtrarNavegacao(
+  pode: (c: CodigoPermissao) => boolean,
+): NavGrupo[] {
+  const visivel = (href: string) => {
+    const codigo = permissaoDaRota(href);
+    return !codigo || pode(codigo);
+  };
+  return GRUPOS.map((g) => ({
+    ...g,
+    links: g.links
+      .map((l) =>
+        'children' in l
+          ? { ...l, children: l.children.filter((c) => visivel(c.href)) }
+          : l,
+      )
+      .filter((l) => ('children' in l ? l.children.length > 0 : visivel(l.href))),
+  })).filter((g) => g.links.length > 0);
+}
 
 function LinkNav({
   href,
@@ -238,12 +272,12 @@ function SubMenu({
 }
 
 function Navegacao({ onNavegar }: { onNavegar?: () => void }) {
-  const { usuario } = useAuth();
-  const isAdmin = usuario?.papeis.includes('ADMINISTRADOR') ?? false;
+  const { pode } = useAuth();
+  const grupos = filtrarNavegacao(pode);
 
   return (
     <nav className="mt-8 flex-1 space-y-6 overflow-y-auto pb-4">
-      {GRUPOS.filter((g) => !g.somenteAdmin || isAdmin).map((g) => (
+      {grupos.map((g) => (
         <div key={g.titulo}>
           <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] opacity-40">
             {g.titulo}
@@ -302,32 +336,107 @@ function PainelLateral({
   );
 }
 
-/** Seletor de empresa ativa, no topo à direita. */
-function SeletorEmpresa() {
-  const { token, empresaId, setEmpresaId } = useAuth();
-  const empresas = useQuery({
-    queryKey: ['empresas-topo'],
-    enabled: !!token,
-    queryFn: () =>
-      api<Array<{ idPublico: string; razaoSocial: string }>>('/empresas', {
-        token: token!,
-      }),
-  });
-  if (!empresas.data?.length) return null;
+/**
+ * Identificação da conta, no topo à direita. Um usuário É uma conta, então não
+ * há o que trocar: isto é rótulo, não seletor.
+ */
+function NomeDaConta() {
+  const { usuario } = useAuth();
+  const nome = usuario?.nomeFantasia || usuario?.nomeRazaoSocial;
+  if (!nome) return null;
   return (
-    <select
-      aria-label="Empresa ativa"
-      className="max-w-[9rem] truncate rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-sm dark:border-white/15 dark:bg-ink-900 sm:max-w-[14rem]"
-      value={empresaId ?? ''}
-      onChange={(e) => setEmpresaId(e.target.value || null)}
+    <span
+      title={nome}
+      className="hidden max-w-[9rem] truncate rounded-md border border-ink-800/15 px-2 py-1.5 text-sm dark:border-white/15 sm:inline-block sm:max-w-[14rem]"
     >
-      <option value="">Todas as empresas</option>
-      {empresas.data.map((e) => (
-        <option key={e.idPublico} value={e.idPublico}>
-          {e.razaoSocial}
-        </option>
-      ))}
-    </select>
+      {nome}
+    </span>
+  );
+}
+
+const doisDigitos = (n: number) => String(n).padStart(2, '0');
+
+/** hh:mm:ss restantes — mesmo formato do relógio, sem depender de locale. */
+function formatarRestante(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return [
+    doisDigitos(Math.floor(s / 3600)),
+    doisDigitos(Math.floor((s % 3600) / 60)),
+    doisDigitos(s % 60),
+  ].join(':');
+}
+
+/**
+ * Contagem regressiva até o token expirar. O `exp` vem do próprio JWT, então o
+ * número na tela é o mesmo prazo que a API respeita — não é uma estimativa.
+ * Quem derruba a sessão no zero é o AuthProvider.
+ */
+function ContadorSessao() {
+  const { expiraEm } = useAuth();
+  const [agora, setAgora] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!expiraEm) return;
+    const id = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [expiraEm]);
+
+  if (!expiraEm) return null;
+
+  const restante = expiraEm - agora;
+  const minutos = restante / 60_000;
+  const cor =
+    minutos <= 1
+      ? 'border-red-500/50 text-red-600 dark:text-red-400'
+      : minutos <= 5
+        ? 'border-amber-500/50 text-amber-600 dark:text-amber-400'
+        : 'border-ink-800/15 dark:border-white/15';
+
+  return (
+    <span
+      title={`Sua sessão expira em ${formatarRestante(restante)} (${new Date(
+        expiraEm,
+      ).toLocaleTimeString('pt-BR')})`}
+      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums sm:px-3 ${cor}`}
+    >
+      <Clock className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+      <span className="sr-only">Sessão expira em </span>
+      {formatarRestante(restante)}
+    </span>
+  );
+}
+
+/**
+ * Estado do 2FA da conta. Leva para Configurações, onde ele é ativado — o
+ * ponto do indicador é justamente incomodar quem está sem segundo fator.
+ */
+function IndicadorDoisFatores() {
+  const { usuario } = useAuth();
+  if (!usuario) return null;
+
+  const ativo = !!usuario.totpHabilitado;
+  const Icone = ativo ? ShieldCheck : ShieldAlert;
+
+  return (
+    <Link
+      href="/configuracoes"
+      title={
+        ativo
+          ? 'Autenticação em dois fatores ativa'
+          : 'Autenticação em dois fatores inativa — clique para ativar'
+      }
+      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition hover:opacity-80 sm:px-3 ${
+        ativo
+          ? 'border-emerald-500/50 text-emerald-600 dark:text-emerald-400'
+          : 'border-accent/60 text-accent'
+      }`}
+    >
+      <Icone className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+      <span className="hidden sm:inline">2FA {ativo ? 'Ativo' : 'Inativo'}</span>
+      <span className="sr-only sm:hidden">
+        Dois fatores {ativo ? 'ativo' : 'inativo'}
+      </span>
+    </Link>
   );
 }
 
@@ -395,11 +504,30 @@ function MenuUsuario() {
 const classeAside =
   'flex flex-col border-ink-800/10 bg-white/70 px-4 py-5 backdrop-blur-md dark:border-white/[0.07] dark:bg-[#121212]/95';
 
+/** Query param que carrega a tela negada até a tela de destino. */
+const PARAM_SEM_PERMISSAO = 'semPermissao';
+
+/** Primeira tela do menu que o perfil consegue abrir (destino do redirecionamento). */
+function primeiraTelaPermitida(pode: (c: CodigoPermissao) => boolean): string | null {
+  for (const grupo of filtrarNavegacao(pode)) {
+    for (const link of grupo.links) {
+      if ('children' in link) {
+        if (link.children[0]) return link.children[0].href;
+      } else {
+        return link.href;
+      }
+    }
+  }
+  return null;
+}
+
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { token, hidratando } = useAuth();
+  const { token, hidratando, usuario, pode } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const avisoLido = useRef<{ tela: string; em: string } | null>(null);
 
   useEffect(() => {
     if (!hidratando && !token) router.replace('/login');
@@ -407,6 +535,43 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setDrawer(false);
+  }, [pathname]);
+
+  /**
+   * Guarda de rota: sem a permissão da tela, o perfil é mandado para a primeira
+   * tela que ele consegue abrir, com aviso — antes valia digitar /admin/... na
+   * barra de endereços e a tela carregava, quebrando só no 403 da API.
+   *
+   * Só roda com `usuario` já carregado: enquanto o /auth/me não volta, as
+   * permissões estão vazias e todo mundo seria expulso da própria tela.
+   */
+  const permissaoExigida = permissaoDaRota(pathname);
+  const negado = !!usuario && !!permissaoExigida && !pode(permissaoExigida);
+  const destino = negado ? primeiraTelaPermitida(pode) : null;
+
+  useEffect(() => {
+    if (!negado || !destino) return;
+    router.replace(`${destino}?${PARAM_SEM_PERMISSAO}=${encodeURIComponent(pathname)}`);
+  }, [negado, destino, pathname, router]);
+
+  /**
+   * A tela negada viaja na query string, não em estado: cada página monta o seu
+   * PRÓPRIO `<Shell>`, então o redirecionamento desmonta este componente e
+   * qualquer `useState` daqui morreria junto. Lido o parâmetro, ele sai da URL
+   * para não reaparecer num F5 — e o valor fica no ref porque em dev o
+   * StrictMode roda o efeito duas vezes, e na segunda a URL já está limpa.
+   */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const daUrl = params.get(PARAM_SEM_PERMISSAO);
+    if (daUrl) {
+      avisoLido.current = { tela: daUrl, em: pathname };
+      params.delete(PARAM_SEM_PERMISSAO);
+      const qs = params.toString();
+      window.history.replaceState(null, '', pathname + (qs ? `?${qs}` : ''));
+    }
+    const atual = avisoLido.current;
+    setAviso(atual && atual.em === pathname ? atual.tela : null);
   }, [pathname]);
 
   if (hidratando) {
@@ -456,12 +621,48 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </button>
           <Marca href="/dashboard" className="lg:hidden" />
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <SeletorEmpresa />
+            <ContadorSessao />
+            <IndicadorDoisFatores />
+            <NomeDaConta />
             <MenuUsuario />
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          {aviso && (
+            <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+              <ShieldAlert
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                strokeWidth={1.75}
+              />
+              <span>
+                Seu perfil de acesso não dá permissão para a tela{' '}
+                <code className="rounded bg-ink-800/10 px-1 dark:bg-white/10">
+                  {aviso}
+                </code>
+                . Fale com um administrador se precisar desse acesso.
+              </span>
+            </div>
+          )}
+          {negado ? (
+            <div className="rounded-lg border border-ink-800/10 px-4 py-10 text-center dark:border-white/10">
+              <ShieldAlert
+                className="mx-auto h-7 w-7 opacity-40"
+                strokeWidth={1.5}
+              />
+              <p className="mt-3 text-sm font-medium">Sem permissão para esta tela</p>
+              <p className="mt-1 text-sm opacity-60">
+                Seu perfil de acesso não inclui{' '}
+                <code className="rounded bg-ink-800/10 px-1 dark:bg-white/10">
+                  {permissaoExigida}
+                </code>
+                .
+              </p>
+            </div>
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   );

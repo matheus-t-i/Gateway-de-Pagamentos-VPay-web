@@ -2,7 +2,6 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { Shell } from '@/components/shell';
 import {
   BarraFiltros,
@@ -13,6 +12,7 @@ import {
 } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PERMISSOES } from '@/lib/permissoes';
 
 type Credencial = {
   id: string;
@@ -33,7 +33,9 @@ type NovaCredencial = {
 };
 
 export default function ChavesApiPage() {
-  const { token, empresaId } = useAuth();
+  const { token, pode } = useAuth();
+  const podeCriar = pode(PERMISSOES.CHAVES_API_CRIAR);
+  const podeRevogar = pode(PERMISSOES.CHAVES_API_EXCLUIR);
   const qc = useQueryClient();
   const [nome, setNome] = useState('');
   const [ips, setIps] = useState('');
@@ -43,15 +45,15 @@ export default function ChavesApiPage() {
   const [situacao, setSituacao] = useState('');
 
   const credenciais = useQuery({
-    queryKey: ['credenciais', empresaId],
-    enabled: !!token && !!empresaId,
+    queryKey: ['credenciais'],
+    enabled: !!token,
     queryFn: () =>
-      api<Credencial[]>(`/empresas/${empresaId}/credenciais`, { token: token! }),
+      api<Credencial[]>('/painel/credenciais', { token: token! }),
   });
 
   const criar = useMutation({
     mutationFn: (body: { nome: string; ipsPermitidos: string[] }) =>
-      api<NovaCredencial>(`/empresas/${empresaId}/credenciais`, {
+      api<NovaCredencial>('/painel/credenciais', {
         token: token!,
         method: 'POST',
         body: JSON.stringify({ ...body, escopos: [] }),
@@ -61,18 +63,18 @@ export default function ChavesApiPage() {
       setNome('');
       setIps('');
       setErro(null);
-      void qc.invalidateQueries({ queryKey: ['credenciais', empresaId] });
+      void qc.invalidateQueries({ queryKey: ['credenciais'] });
     },
     onError: (e) => setErro(e instanceof Error ? e.message : 'Falha ao criar'),
   });
 
   const revogar = useMutation({
     mutationFn: (id: string) =>
-      api(`/empresas/${empresaId}/credenciais/${id}`, {
+      api(`/painel/credenciais/${id}`, {
         token: token!,
         method: 'DELETE',
       }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['credenciais', empresaId] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['credenciais'] }),
   });
 
   function onCriar(e: FormEvent) {
@@ -134,7 +136,7 @@ export default function ChavesApiPage() {
       titulo: 'Ações',
       className: 'text-right',
       render: (c) =>
-        c.ativo ? (
+        c.ativo && podeRevogar ? (
           <button
             type="button"
             onClick={() => revogar.mutate(c.id)}
@@ -153,18 +155,7 @@ export default function ChavesApiPage() {
         Credenciais para integrar seus sistemas à API do gateway.
       </p>
 
-      {!empresaId && (
-        <div className="mt-8 rounded-lg border border-dashed border-ink-800/20 p-6 text-sm opacity-70 dark:border-white/20">
-          Selecione uma empresa em{' '}
-          <Link href="/empresas" className="text-accent underline">
-            Empresas
-          </Link>{' '}
-          para gerenciar chaves de API.
-        </div>
-      )}
 
-      {empresaId && (
-        <>
           {/* Segredo recém-criado — exibido uma única vez */}
           {criada && (
             <div className="mt-6 rounded-lg border border-amber-400/50 bg-amber-50 p-4 text-sm dark:bg-amber-950/30">
@@ -191,6 +182,7 @@ export default function ChavesApiPage() {
 
           <form
             onSubmit={onCriar}
+            hidden={!podeCriar}
             className="mt-6 rounded-lg border border-ink-800/10 p-4 dark:border-white/10"
           >
             <h2 className="text-sm font-semibold">Nova chave</h2>
@@ -249,8 +241,6 @@ export default function ChavesApiPage() {
               vazio="Nenhuma chave criada ainda."
             />
           </div>
-        </>
-      )}
     </Shell>
   );
 }

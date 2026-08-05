@@ -15,15 +15,14 @@ export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
 
 export async function api<T>(
   path: string,
-  options: RequestInit & { token?: string; empresaId?: string } = {},
+  options: RequestInit & { token?: string } = {},
 ): Promise<T> {
-  const { token, empresaId, headers, ...rest } = options;
+  const { token, headers, ...rest } = options;
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
     headers: {
       'content-type': 'application/json',
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(empresaId ? { 'x-empresa-id': empresaId } : {}),
       ...headers,
     },
   });

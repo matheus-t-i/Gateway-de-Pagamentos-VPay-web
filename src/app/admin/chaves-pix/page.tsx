@@ -7,6 +7,7 @@ import { BarraFiltros, FiltroTexto, TabelaPaginada, type Coluna } from '@/compon
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
+import { PERMISSOES } from '@/lib/permissoes';
 
 type ChavePix = {
   idPublico: string;
@@ -17,7 +18,7 @@ type ChavePix = {
   situacao: string;
   motivoReprovacao: string | null;
   criadoEm: string;
-  empresa: { idPublico: string; razaoSocial: string; cnpj: string; situacao: string };
+  cliente: { idPublico: string; nome: string; cpfCnpj: string; situacao: string };
 };
 
 const FILTROS = ['PENDENTE', 'APROVADA', 'REPROVADA'] as const;
@@ -29,7 +30,8 @@ const badge: Record<string, string> = {
 };
 
 export default function AdminChavesPixPage() {
-  const { token } = useAuth();
+  const { token, pode } = useAuth();
+  const podeAprovar = pode(PERMISSOES.ADMIN_CHAVES_PIX_APROVAR);
   const qc = useQueryClient();
   const [situacao, setSituacao] = useState<string>('PENDENTE');
   const [busca, setBusca] = useState('');
@@ -63,18 +65,18 @@ export default function AdminChavesPixPage() {
     return lista.filter(
       (c) =>
         c.chave.toLowerCase().includes(q) ||
-        c.empresa.razaoSocial.toLowerCase().includes(q),
+        c.cliente.nome.toLowerCase().includes(q),
     );
   }, [chaves.data, busca]);
 
   const colunas: Coluna<ChavePix>[] = [
     {
-      chave: 'empresa',
-      titulo: 'Empresa',
+      chave: 'cliente',
+      titulo: 'Cliente',
       render: (c) => (
         <div className="min-w-0">
-          <p className="font-medium">{c.empresa.razaoSocial}</p>
-          <p className="text-xs opacity-60">{formatarDocumento(c.empresa.cnpj)}</p>
+          <p className="font-medium">{c.cliente.nome}</p>
+          <p className="text-xs opacity-60">{formatarDocumento(c.cliente.cpfCnpj)}</p>
           <p className="text-xs opacity-50">
             {new Date(c.criadoEm).toLocaleString('pt-BR')}
           </p>
@@ -116,7 +118,7 @@ export default function AdminChavesPixPage() {
       titulo: 'Ações',
       className: 'text-right',
       render: (c) =>
-        c.situacao === 'PENDENTE' ? (
+        c.situacao === 'PENDENTE' && podeAprovar ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"

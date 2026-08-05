@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
 import { BarraFiltros, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
+import { badgeDocumento as badge, DocumentosAdmin } from '@/components/documentos-admin';
 import { api, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
+import { PERMISSOES } from '@/lib/permissoes';
 
 type UsuarioAdmin = {
   idPublico: string;
@@ -18,132 +20,13 @@ type UsuarioAdmin = {
   situacao: string;
   criadoEm: string;
   documentos: { total: number; pendentes: number; validos: number; invalidos: number };
-  empresas: Array<{ idPublico: string; razaoSocial: string; situacao: string }>;
-};
-
-type DocAdmin = {
-  id: string;
-  tipoDocumento: string;
-  nomeArquivo: string;
-  situacao: string;
-  motivoInvalidacao: string | null;
-  enviadoEm: string;
 };
 
 const SITUACOES = ['EM_ANALISE', 'PENDENTE', 'ATIVO', 'REPROVADO'] as const;
 
-const badge: Record<string, string> = {
-  PENDENTE: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-  EM_ANALISE: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300',
-  VALIDO: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-  ATIVO: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-  ATIVA: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-  INVALIDO: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300',
-  REPROVADO: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300',
-  REPROVADA: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300',
-};
-
-function DocumentosDe({
-  escopo,
-  idPublico,
-  token,
-}: {
-  escopo: 'usuario' | 'empresa';
-  idPublico: string;
-  token: string;
-}) {
-  const qc = useQueryClient();
-  const rota = escopo === 'usuario' ? 'usuarios' : 'empresas';
-  const docs = useQuery({
-    queryKey: ['admin-docs', escopo, idPublico],
-    queryFn: () =>
-      api<{ documentos: DocAdmin[] }>(`/admin/${rota}/${idPublico}/documentos`, {
-        token,
-      }),
-  });
-
-  const validar = useMutation({
-    mutationFn: (p: { id: string; situacao: 'VALIDO' | 'INVALIDO'; motivo?: string }) =>
-      api(`/admin/documentos/${escopo}/${p.id}/validar`, {
-        token,
-        method: 'POST',
-        body: JSON.stringify({ situacao: p.situacao, motivo: p.motivo }),
-      }),
-    onSuccess: () =>
-      void qc.invalidateQueries({ queryKey: ['admin-docs', escopo, idPublico] }),
-  });
-
-  async function baixar(doc: DocAdmin) {
-    const res = await fetch(`${API_URL}/admin/documentos/${escopo}/${doc.id}/arquivo`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.nomeArquivo;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  if (!docs.data) return <p className="text-xs opacity-60">Carregando documentos…</p>;
-  if (docs.data.documentos.length === 0)
-    return <p className="text-xs opacity-60">Nenhum documento enviado.</p>;
-
-  return (
-    <ul className="space-y-2">
-      {docs.data.documentos.map((d) => (
-        <li
-          key={d.id}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-ink-800/10 px-3 py-2 text-sm dark:border-white/10"
-        >
-          <div className="min-w-0">
-            <p className="font-medium">{d.tipoDocumento}</p>
-            <p className="truncate text-xs opacity-60">{d.nomeArquivo}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-xs ${badge[d.situacao] ?? ''}`}>
-              {d.situacao}
-            </span>
-            <button
-              type="button"
-              onClick={() => void baixar(d)}
-              className="text-xs text-accent underline"
-            >
-              Baixar
-            </button>
-            {d.situacao === 'PENDENTE' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => validar.mutate({ id: d.id, situacao: 'VALIDO' })}
-                  className="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white"
-                >
-                  Válido
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const motivo = window.prompt('Motivo da invalidação:') ?? undefined;
-                    if (motivo !== undefined) {
-                      validar.mutate({ id: d.id, situacao: 'INVALIDO', motivo });
-                    }
-                  }}
-                  className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white"
-                >
-                  Inválido
-                </button>
-              </>
-            )}
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export default function AprovacoesPage() {
-  const { token } = useAuth();
+  const { token, pode } = useAuth();
+  const podeAprovar = pode(PERMISSOES.ADMIN_APROVACOES_APROVAR);
   const qc = useQueryClient();
   const [situacao, setSituacao] = useState<(typeof SITUACOES)[number]>('EM_ANALISE');
   const [busca, setBusca] = useState('');
@@ -198,22 +81,6 @@ export default function AprovacoesPage() {
   const reprovarUsuario = useMutation({
     mutationFn: (p: { id: string; motivo: string }) =>
       api(`/admin/usuarios/${p.id}/reprovar`, {
-        token: token!,
-        method: 'POST',
-        body: JSON.stringify({ motivo: p.motivo }),
-      }),
-    onSuccess: invalidate,
-    onError: onErro,
-  });
-  const ativarEmpresa = useMutation({
-    mutationFn: (id: string) =>
-      api(`/admin/empresas/${id}/ativar`, { token: token!, method: 'POST' }),
-    onSuccess: invalidate,
-    onError: onErro,
-  });
-  const reprovarEmpresa = useMutation({
-    mutationFn: (p: { id: string; motivo: string }) =>
-      api(`/admin/empresas/${p.id}/reprovar`, {
         token: token!,
         method: 'POST',
         body: JSON.stringify({ motivo: p.motivo }),
@@ -306,10 +173,14 @@ export default function AprovacoesPage() {
                 <div>
                   <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-60">
                     {u.tipoPessoa === 'PJ'
-                      ? 'Documentos do responsável'
+                      ? 'Documentos do responsável e da empresa'
                       : 'Documentos do titular'}
                   </h3>
-                  <DocumentosDe escopo="usuario" idPublico={u.idPublico} token={token} />
+                  <DocumentosAdmin
+                    idPublico={u.idPublico}
+                    token={token}
+                    onAtualizar={invalidate}
+                  />
                   {/* Upload do contrato de prestação de serviço assinado (VPay) */}
                   <label className="mt-3 inline-block cursor-pointer rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/10">
                     Subir contrato de prestação de serviço
@@ -335,7 +206,7 @@ export default function AprovacoesPage() {
                           );
                           if (!res.ok) throw new Error(await res.text());
                           void qc.invalidateQueries({
-                            queryKey: ['admin-docs', 'usuario', u.idPublico],
+                            queryKey: ['admin-docs', u.idPublico],
                           });
                         } catch (e) {
                           onErro(e);
@@ -343,7 +214,7 @@ export default function AprovacoesPage() {
                       }}
                     />
                   </label>
-                  {u.situacao === 'EM_ANALISE' && (
+                  {u.situacao === 'EM_ANALISE' && podeAprovar && (
                     <div className="mt-3 flex gap-2">
                       <button
                         type="button"
@@ -366,38 +237,6 @@ export default function AprovacoesPage() {
                   )}
                 </div>
 
-                {u.empresas.map((e) => (
-                  <div key={e.idPublico}>
-                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-60">
-                      Empresa: {e.razaoSocial}{' '}
-                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${badge[e.situacao] ?? ''}`}>
-                        {e.situacao}
-                      </span>
-                    </h3>
-                    <DocumentosDe escopo="empresa" idPublico={e.idPublico} token={token} />
-                    {e.situacao === 'EM_ANALISE' && (
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => ativarEmpresa.mutate(e.idPublico)}
-                          className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
-                        >
-                          Aprovar empresa
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const motivo = window.prompt('Motivo da reprovação:');
-                            if (motivo) reprovarEmpresa.mutate({ id: e.idPublico, motivo });
-                          }}
-                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
-                        >
-                          Reprovar empresa
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             )}
           </li>

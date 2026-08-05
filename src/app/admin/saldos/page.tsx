@@ -15,6 +15,7 @@ import {
 import { Gatilho, GatilhoModal } from '@/components/gatilho-modal';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PERMISSOES } from '@/lib/permissoes';
 
 const brl = (v: string | number | null) =>
   v == null
@@ -98,7 +99,9 @@ function erroMsg(e: unknown) {
 }
 
 export default function SaldosPage() {
-  const { token } = useAuth();
+  const { token, pode } = useAuth();
+  const podeEditarGatilho = pode(PERMISSOES.ADMIN_TESOURARIA_EDITAR);
+  const podeExecutar = pode(PERMISSOES.ADMIN_TESOURARIA_EXECUTAR);
   const qc = useQueryClient();
 
   const [modal, setModal] = useState<{ aberto: boolean; gatilho: Gatilho | null }>({
@@ -252,16 +255,18 @@ export default function SaldosPage() {
             className="text-xs text-accent underline"
             onClick={() => setModal({ aberto: true, gatilho: g })}
           >
-            Editar
+            {podeEditarGatilho ? 'Editar' : 'Detalhes'}
           </button>
-          <button
-            type="button"
-            disabled={!g.ativo || executar.isPending}
-            className="text-xs text-accent underline disabled:opacity-40 disabled:no-underline"
-            onClick={() => executar.mutate(g.id)}
-          >
-            Executar agora
-          </button>
+          {podeExecutar && (
+            <button
+              type="button"
+              disabled={!g.ativo || executar.isPending}
+              className="text-xs text-accent underline disabled:opacity-40 disabled:no-underline"
+              onClick={() => executar.mutate(g.id)}
+            >
+              Executar agora
+            </button>
+          )}
         </div>
       ),
     },
@@ -311,20 +316,26 @@ export default function SaldosPage() {
     <Shell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-semibold">Saldos e saques</h1>
+          <h1 className="font-display text-3xl font-semibold">Saldos Adquirentes</h1>
           <p className="mt-1 text-sm opacity-70">
             Saldo da VPay em cada adquirente, gatilhos de saque automático e o
-            acompanhamento dos saques.
+            acompanhamento dos saques. Para o saldo dos lojistas, veja{' '}
+            <Link href="/admin/carteiras" className="text-accent underline">
+              Carteiras dos clientes
+            </Link>
+            .
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => atualizar.mutate()}
-          disabled={atualizar.isPending}
-          className="rounded-md border border-ink-800/15 px-4 py-2 text-sm font-medium transition hover:bg-ink-800/5 disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/5"
-        >
-          {atualizar.isPending ? 'Atualizando…' : 'Atualizar saldos'}
-        </button>
+        {podeExecutar && (
+          <button
+            type="button"
+            onClick={() => atualizar.mutate()}
+            disabled={atualizar.isPending}
+            className="rounded-md border border-ink-800/15 px-4 py-2 text-sm font-medium transition hover:bg-ink-800/5 disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/5"
+          >
+            {atualizar.isPending ? 'Atualizando…' : 'Atualizar saldos'}
+          </button>
+        )}
       </div>
 
       {aviso && (
@@ -431,13 +442,15 @@ export default function SaldosPage() {
       <section className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-lg font-semibold">Gatilhos de saque automático</h2>
-          <button
-            type="button"
-            onClick={() => setModal({ aberto: true, gatilho: null })}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
-          >
-            Novo gatilho
-          </button>
+          {podeEditarGatilho && (
+            <button
+              type="button"
+              onClick={() => setModal({ aberto: true, gatilho: null })}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
+            >
+              Novo gatilho
+            </button>
+          )}
         </div>
 
         <div className="mt-3">

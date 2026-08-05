@@ -12,16 +12,21 @@ import {
 } from '@/components/tabela';
 import { Modal, ModalAcoes } from '@/components/modal';
 import {
+  ClientesAdquirenteModal,
   EditarAdquirenteModal,
   NovaAdquirenteModal,
   TaxaPadraoModal,
 } from '@/components/adquirente-modais';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PERMISSOES } from '@/lib/permissoes';
 
 type Adquirente = {
   codigo: string;
   nome: string;
+  nomeFantasia?: string | null;
+  temMed?: boolean;
+  disponibilidadePixEntrada?: 'TODOS' | 'ESPECIFICOS';
   situacao: 'ATIVO' | 'INATIVO' | 'SUSPENSO';
   permitePixEntrada?: boolean;
   permitePixSaida?: boolean;
@@ -30,16 +35,20 @@ type Adquirente = {
 const SITUACOES: Adquirente['situacao'][] = ['ATIVO', 'INATIVO', 'SUSPENSO'];
 
 export default function AdquirentesPage() {
-  const { token } = useAuth();
+  const { token, pode } = useAuth();
+  const podeCriar = pode(PERMISSOES.ADMIN_ADQUIRENTES_CRIAR);
+  const podeEditar = pode(PERMISSOES.ADMIN_ADQUIRENTES_EDITAR);
   const [busca, setBusca] = useState('');
   const [fSituacao, setFSituacao] = useState('');
   const [alternarAberto, setAlternarAberto] = useState(false);
+  const [origemAdq, setOrigemAdq] = useState('');
   const [novaAdq, setNovaAdq] = useState('');
   const [cashIn, setCashIn] = useState(true);
   const [cashOut, setCashOut] = useState(false);
   const [resultadoAlt, setResultadoAlt] = useState<string | null>(null);
   const [erroAlt, setErroAlt] = useState<string | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
+  const [clientesDe, setClientesDe] = useState<string | null>(null);
   const [taxaAberto, setTaxaAberto] = useState(false);
   const [novaAberto, setNovaAberto] = useState(false);
 
@@ -51,17 +60,22 @@ export default function AdquirentesPage() {
 
   const alternarMassa = useMutation({
     mutationFn: () =>
-      api<{ configuracoesUsuarioAtualizadas: number; overridesEmpresaAtualizados: number }>(
+      api<{ configuracoesUsuarioAtualizadas: number }>(
         '/admin/adquirentes/alternar-massa',
         {
           token: token!,
           method: 'POST',
-          body: JSON.stringify({ adquirenteCodigo: novaAdq, cashIn, cashOut }),
+          body: JSON.stringify({
+            adquirenteCodigo: novaAdq,
+            origemCodigo: origemAdq || undefined,
+            cashIn,
+            cashOut,
+          }),
         },
       ),
     onSuccess: (r) => {
       setResultadoAlt(
-        `Pronto: ${r.configuracoesUsuarioAtualizadas} cliente(s) e ${r.overridesEmpresaAtualizados} override(s) de empresa atualizados.`,
+        `Pronto: ${r.configuracoesUsuarioAtualizadas} cliente(s) atualizado(s).`,
       );
       setErroAlt(null);
     },
@@ -97,6 +111,9 @@ export default function AdquirentesPage() {
         <div>
           <p className="font-medium">{a.nome}</p>
           <p className="font-mono text-xs opacity-60">{a.codigo}</p>
+          {a.nomeFantasia && (
+            <p className="text-xs opacity-60">Cliente vê: {a.nomeFantasia}</p>
+          )}
         </div>
       ),
     },
@@ -107,6 +124,20 @@ export default function AdquirentesPage() {
         [a.permitePixEntrada && 'Entrada', a.permitePixSaida && 'Saída']
           .filter(Boolean)
           .join(' · ') || '—',
+    },
+    {
+      chave: 'vitrine',
+      titulo: 'Vitrine',
+      render: (a) => (
+        <div className="text-xs">
+          <p>
+            {a.disponibilidadePixEntrada === 'TODOS'
+              ? 'Todos os clientes'
+              : 'Clientes liberados'}
+          </p>
+          <p className="opacity-60">MED: {a.temMed ? 'sim' : 'não'}</p>
+        </div>
+      ),
     },
     {
       chave: 'situacao',
@@ -129,13 +160,22 @@ export default function AdquirentesPage() {
       chave: 'editar',
       titulo: '',
       render: (a) => (
-        <button
-          type="button"
-          onClick={() => setEditando(a.codigo)}
-          className="rounded-md border border-ink-800/15 px-3 py-1 text-xs font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
-        >
-          Editar / taxas
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setEditando(a.codigo)}
+            className="rounded-md border border-ink-800/15 px-3 py-1 text-xs font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+          >
+            {podeEditar ? 'Editar / taxas' : 'Detalhes'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setClientesDe(a.codigo)}
+            className="rounded-md border border-ink-800/15 px-3 py-1 text-xs font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+          >
+            Clientes
+          </button>
+        </div>
       ),
     },
   ];
@@ -158,24 +198,30 @@ export default function AdquirentesPage() {
           >
             Taxas padrão
           </button>
-          <button
-            type="button"
-            onClick={() => setNovaAberto(true)}
-            className="rounded-md border border-ink-800/15 px-4 py-2 text-sm font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
-          >
-            Nova adquirente
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setResultadoAlt(null);
-              setErroAlt(null);
-              setAlternarAberto(true);
-            }}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
-          >
-            Alternar em massa
-          </button>
+          {podeCriar && (
+            <button
+              type="button"
+              onClick={() => setNovaAberto(true)}
+              className="rounded-md border border-ink-800/15 px-4 py-2 text-sm font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+            >
+              Nova adquirente
+            </button>
+          )}
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => {
+                setResultadoAlt(null);
+                setErroAlt(null);
+                setOrigemAdq('');
+                setNovaAdq('');
+                setAlternarAberto(true);
+              }}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
+            >
+              Alternar em massa
+            </button>
+          )}
         </div>
       </div>
 
@@ -222,6 +268,11 @@ export default function AdquirentesPage() {
             token={token}
             onClose={() => setEditando(null)}
           />
+          <ClientesAdquirenteModal
+            codigo={clientesDe}
+            token={token}
+            onClose={() => setClientesDe(null)}
+          />
           <TaxaPadraoModal open={taxaAberto} token={token} onClose={() => setTaxaAberto(false)} />
           <NovaAdquirenteModal open={novaAberto} token={token} onClose={() => setNovaAberto(false)} />
         </>
@@ -252,7 +303,26 @@ export default function AdquirentesPage() {
             className="space-y-4"
           >
             <label className="block text-sm">
-              Selecionar nova adquirente
+              Adquirente de origem
+              <select
+                className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900"
+                value={origemAdq}
+                onChange={(e) => setOrigemAdq(e.target.value)}
+              >
+                <option value="">Todas (todos os clientes)</option>
+                {adquirentes.data?.map((a) => (
+                  <option key={a.codigo} value={a.codigo}>
+                    {a.nome}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs opacity-60">
+                Só os clientes que estão nesta adquirente hoje serão migrados.
+              </span>
+            </label>
+
+            <label className="block text-sm">
+              Adquirente de destino
               <select
                 className="mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900"
                 value={novaAdq}
@@ -261,7 +331,7 @@ export default function AdquirentesPage() {
               >
                 <option value="">Selecione uma adquirente</option>
                 {adquirentes.data
-                  ?.filter((a) => a.situacao === 'ATIVO')
+                  ?.filter((a) => a.situacao === 'ATIVO' && a.codigo !== origemAdq)
                   .map((a) => (
                     <option key={a.codigo} value={a.codigo}>
                       {a.nome}
@@ -286,8 +356,20 @@ export default function AdquirentesPage() {
             </fieldset>
 
             <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-              Isto troca a adquirente de <strong>todos os clientes</strong> de uma vez, para a
-              direção selecionada.
+              {origemAdq ? (
+                <>
+                  Isto migra os clientes que hoje usam{' '}
+                  <strong>
+                    {adquirentes.data?.find((a) => a.codigo === origemAdq)?.nome ?? origemAdq}
+                  </strong>{' '}
+                  para a adquirente de destino, na direção selecionada.
+                </>
+              ) : (
+                <>
+                  Isto troca a adquirente de <strong>todos os clientes</strong> de uma vez,
+                  para a direção selecionada.
+                </>
+              )}
             </p>
 
             {erroAlt && <p className="text-sm text-red-600">{erroAlt}</p>}

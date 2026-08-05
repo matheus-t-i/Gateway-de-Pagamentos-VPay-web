@@ -6,6 +6,7 @@ import { Shell } from '@/components/shell';
 import { BarraFiltros, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PERMISSOES } from '@/lib/permissoes';
 
 type CasoMed = {
   idPublico: string;
@@ -18,7 +19,7 @@ type CasoMed = {
   motivo: string | null;
   recebidoEm: string;
   decididoEm: string | null;
-  empresa: { razaoSocial: string; idPublico: string };
+  cliente: { nome: string; idPublico: string };
   transacao: { idTransacao: string; valorBruto: string };
 };
 
@@ -123,7 +124,8 @@ function Detalhes({ idPublico, token }: { idPublico: string; token: string }) {
 }
 
 export default function MedPage() {
-  const { token, usuario } = useAuth();
+  const { token, usuario, pode } = useAuth();
+  const podeDecidir = pode(PERMISSOES.ADMIN_MED_DECIDIR);
   const qc = useQueryClient();
   const [situacao, setSituacao] = useState<string>('SALDO_BLOQUEADO');
   const [aberto, setAberto] = useState<string | null>(null);
@@ -178,8 +180,8 @@ export default function MedPage() {
     if (!termo) return true;
     return (
       c.idPublico.toLowerCase().includes(termo) ||
-      c.empresa.razaoSocial.toLowerCase().includes(termo) ||
-      c.empresa.idPublico.toLowerCase().includes(termo) ||
+      c.cliente.nome.toLowerCase().includes(termo) ||
+      c.cliente.idPublico.toLowerCase().includes(termo) ||
       c.transacao.idTransacao.toLowerCase().includes(termo)
     );
   });
@@ -220,7 +222,7 @@ export default function MedPage() {
             label="Buscar"
             value={busca}
             onChange={setBusca}
-            placeholder="ID do caso, empresa ou transação"
+            placeholder="ID do caso, cliente ou transação"
           />
         </BarraFiltros>
       </div>
@@ -242,7 +244,7 @@ export default function MedPage() {
                   </span>
                 </p>
                 <p className="truncate text-xs opacity-60">
-                  {c.empresa.razaoSocial}
+                  {c.cliente.nome}
                 </p>
                 <p className="truncate font-mono text-xs opacity-50">
                   {c.transacao.idTransacao}
@@ -273,7 +275,7 @@ export default function MedPage() {
               <div className="mt-4 border-t border-ink-800/10 pt-4 dark:border-white/10">
                 <Detalhes idPublico={c.idPublico} token={token} />
 
-                {DECIDIVEIS.includes(c.situacao) && (
+                {DECIDIVEIS.includes(c.situacao) && podeDecidir && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"

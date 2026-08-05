@@ -25,14 +25,8 @@ type DocsStatus = {
 type Status = {
   situacao: string;
   tipoPessoa: 'PF' | 'PJ';
-  documentosUsuario: DocsStatus;
-  empresa: {
-    idPublico: string;
-    situacao: string;
-    tipoPessoa: 'PF' | 'PJ';
-    exigeDocumentos: boolean;
-    documentos: DocsStatus;
-  } | null;
+  /** Pessoais (PF/responsável) e, para PJ, também os da pessoa jurídica. */
+  documentos: DocsStatus;
 };
 
 const ROTULOS: Record<string, string> = {
@@ -41,7 +35,7 @@ const ROTULOS: Record<string, string> = {
   SELFIE_COM_DOCUMENTO: 'Selfie segurando o RG ou CNH',
   CONTRATO_SOCIAL: 'Contrato social',
   CARTAO_CNPJ: 'Cartão CNPJ',
-  COMPROVANTE_ENDERECO_EMPRESA: 'Comprovante de endereço da empresa',
+  COMPROVANTE_ENDERECO_EMPRESA: 'Comprovante de endereço da pessoa jurídica',
   CONTRATO_PRESTACAO_SERVICO: 'Contrato de prestação de serviço',
 };
 
@@ -134,7 +128,7 @@ export default function OnboardingDocumentosPage() {
     }
   }
 
-  async function enviar(alvo: 'USUARIO' | 'EMPRESA', tipo: string, arquivo: File) {
+  async function enviar(tipo: string, arquivo: File) {
     if (!creds) return;
     setErro(null);
     setEnviando(tipo);
@@ -142,11 +136,7 @@ export default function OnboardingDocumentosPage() {
       const fd = new FormData();
       fd.append('email', creds.email);
       fd.append('senha', creds.senha);
-      fd.append('alvo', alvo);
       fd.append('tipoDocumento', tipo);
-      if (alvo === 'EMPRESA' && status?.empresa) {
-        fd.append('empresaIdPublico', status.empresa.idPublico);
-      }
       fd.append('arquivo', arquivo);
       const s = await apiUpload<Status>('/onboarding/documentos', fd);
       setStatus(s);
@@ -157,10 +147,7 @@ export default function OnboardingDocumentosPage() {
     }
   }
 
-  const tudoEnviado =
-    status &&
-    status.documentosUsuario.faltantes.length === 0 &&
-    (status.empresa?.documentos.faltantes.length ?? 0) === 0;
+  const tudoEnviado = status && status.documentos.faltantes.length === 0;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 py-10 sm:px-6">
@@ -231,23 +218,23 @@ export default function OnboardingDocumentosPage() {
           ) : (
             <p className="mt-2 text-sm opacity-70">
               {status.tipoPessoa === 'PJ'
-                ? 'Envie os documentos do responsável e da empresa (PDF, JPG ou PNG, até 10MB).'
+                ? 'Envie os documentos do responsável e da pessoa jurídica (PDF, JPG ou PNG, até 10MB).'
                 : 'Envie seus documentos pessoais (PDF, JPG ou PNG, até 10MB).'}{' '}
               Quando todos forem recebidos sua conta entra em análise
               automaticamente.
             </p>
           )}
 
-          {/* Documentos pessoais — do titular (PF) ou do responsável (PJ) */}
+          {/* Documentos da conta — titular (PF) ou responsável + PJ */}
           <section className="mt-8">
             <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
               {status.tipoPessoa === 'PJ'
-                ? 'Documentos do responsável'
+                ? 'Documentos do responsável e da empresa'
                 : 'Documentos do titular'}
             </h2>
-            {status.documentosUsuario.enviados.length > 0 && (
+            {status.documentos.enviados.length > 0 && (
               <ul className="mt-3 space-y-2">
-                {status.documentosUsuario.enviados.map((d, i) => (
+                {status.documentos.enviados.map((d, i) => (
                   <li
                     key={i}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ink-800/10 px-4 py-2.5 text-sm dark:border-white/10"
@@ -263,58 +250,19 @@ export default function OnboardingDocumentosPage() {
                 ))}
               </ul>
             )}
-            {status.documentosUsuario.faltantes.length > 0 && (
+            {status.documentos.faltantes.length > 0 && (
               <ul className="mt-3 space-y-2">
-                {status.documentosUsuario.faltantes.map((t) => (
+                {status.documentos.faltantes.map((t) => (
                   <LinhaUpload
                     key={t}
                     tipo={t}
                     enviando={enviando}
-                    onEnviar={(tipo, f) => enviar('USUARIO', tipo, f)}
+                    onEnviar={(tipo, f) => enviar(tipo, f)}
                   />
                 ))}
               </ul>
             )}
           </section>
-
-          {/* Documentos da empresa — só PJ exige (para PF a empresa é a própria pessoa) */}
-          {status.empresa?.exigeDocumentos && (
-            <section className="mt-8">
-              <h2 className="text-sm font-semibold uppercase tracking-wide opacity-60">
-                Documentos da empresa
-              </h2>
-              {status.empresa.documentos.enviados.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {status.empresa.documentos.enviados.map((d, i) => (
-                    <li
-                      key={i}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ink-800/10 px-4 py-2.5 text-sm dark:border-white/10"
-                    >
-                      <span>{rotulo(d.tipoDocumento)}</span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeCls[d.situacao] ?? ''}`}
-                      >
-                        {d.situacao}
-                        {d.motivoInvalidacao ? ` — ${d.motivoInvalidacao}` : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {status.empresa.documentos.faltantes.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {status.empresa.documentos.faltantes.map((t) => (
-                    <LinhaUpload
-                      key={t}
-                      tipo={t}
-                      enviando={enviando}
-                      onEnviar={(tipo, f) => enviar('EMPRESA', tipo, f)}
-                    />
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
 
           {/* Slot do contrato de prestação de serviço — enviado pela VPay */}
           <section className="mt-8">

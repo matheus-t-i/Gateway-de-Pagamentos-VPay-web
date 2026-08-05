@@ -332,7 +332,7 @@ export default function RelatorioResultadoPage() {
         <p className="mt-4 text-xs opacity-50">
           Receita = tarifa persistida na operação (cash-in: amount − líquido; cash-out: idem).
           Custo = tarifa da adquirente (fixa + amount × %). Vendas retidas
-          (AGUARDANDO_PAGAMENTO): o valor fica com a empresa, entra como receita com custo
+          (AGUARDANDO_PAGAMENTO): o valor fica com o lojista, entra como receita com custo
           R$ 0,00. Custo ausente é sinalizado (pode superestimar o lucro).
         </p>
       </div>

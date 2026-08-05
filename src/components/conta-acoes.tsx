@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { PERMISSOES } from '@/lib/permissoes';
 import { Modal, ModalAcoes } from './modal';
 
 const inputCls =
@@ -16,7 +17,6 @@ const btnGhost =
 type ModalProps = {
   open: boolean;
   onClose: () => void;
-  empresaIdPublico: string;
   token: string;
 };
 
@@ -44,17 +44,11 @@ function mensagemErro(e: unknown): string {
 }
 
 /**
- * Botões de Depositar, Sacar e Criar credencial por empresa, no dashboard.
- * Só aparecem quando a empresa está ATIVA (regra do backend).
+ * Botões de Depositar, Sacar e Criar credencial da conta, no dashboard.
+ * Só aparecem com a conta ATIVA (regra do backend).
  */
-export function EmpresaAcoes({
-  empresaIdPublico,
-  ativa,
-}: {
-  empresaIdPublico: string;
-  ativa: boolean;
-}) {
-  const { token } = useAuth();
+export function ContaAcoes({ ativa }: { ativa: boolean }) {
+  const { token, pode } = useAuth();
   const [aberto, setAberto] = useState<null | 'deposito' | 'saque' | 'credencial'>(
     null,
   );
@@ -62,46 +56,49 @@ export function EmpresaAcoes({
   if (!ativa || !token) {
     return (
       <p className="mt-3 text-xs opacity-60">
-        Depósito e saque ficam disponíveis quando a empresa estiver ATIVA.
+        Depósito e saque ficam disponíveis quando a conta estiver ATIVA.
       </p>
     );
   }
 
   return (
     <div className="mt-4 flex flex-wrap gap-2">
-      <button type="button" className={btnGhost} onClick={() => setAberto('deposito')}>
-        Depositar
-      </button>
-      <button type="button" className={btnGhost} onClick={() => setAberto('saque')}>
-        Sacar
-      </button>
-      <button type="button" className={btnGhost} onClick={() => setAberto('credencial')}>
-        Criar credencial
-      </button>
+      {pode(PERMISSOES.TRANSACOES_CRIAR) && (
+        <>
+          <button type="button" className={btnGhost} onClick={() => setAberto('deposito')}>
+            Depositar
+          </button>
+          <button type="button" className={btnGhost} onClick={() => setAberto('saque')}>
+            Sacar
+          </button>
+        </>
+      )}
+      {pode(PERMISSOES.CHAVES_API_CRIAR) && (
+        <button type="button" className={btnGhost} onClick={() => setAberto('credencial')}>
+          Criar credencial
+        </button>
+      )}
 
       <DepositoModal
         open={aberto === 'deposito'}
         onClose={() => setAberto(null)}
-        empresaIdPublico={empresaIdPublico}
         token={token}
       />
       <SaqueModal
         open={aberto === 'saque'}
         onClose={() => setAberto(null)}
-        empresaIdPublico={empresaIdPublico}
         token={token}
       />
       <CredencialModal
         open={aberto === 'credencial'}
         onClose={() => setAberto(null)}
-        empresaIdPublico={empresaIdPublico}
         token={token}
       />
     </div>
   );
 }
 
-function DepositoModal({ open, onClose, empresaIdPublico, token }: ModalProps) {
+function DepositoModal({ open, onClose, token }: ModalProps) {
   const qc = useQueryClient();
   const [valor, setValor] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -112,7 +109,6 @@ function DepositoModal({ open, onClose, empresaIdPublico, token }: ModalProps) {
     mutationFn: () =>
       api<CobrancaResp>('/painel/transacoes/cobrancas', {
         token,
-        empresaId: empresaIdPublico,
         method: 'POST',
         body: JSON.stringify({ valor }),
       }),
@@ -190,7 +186,7 @@ function DepositoModal({ open, onClose, empresaIdPublico, token }: ModalProps) {
   );
 }
 
-export function SaqueModal({ open, onClose, empresaIdPublico, token }: ModalProps) {
+export function SaqueModal({ open, onClose, token }: ModalProps) {
   const qc = useQueryClient();
   const [valor, setValor] = useState('');
   const [chaveSel, setChaveSel] = useState('');
@@ -205,10 +201,9 @@ export function SaqueModal({ open, onClose, empresaIdPublico, token }: ModalProp
   const [nomeTitular, setNomeTitular] = useState('');
 
   const chaves = useQuery({
-    queryKey: ['chaves-pix', empresaIdPublico],
+    queryKey: ['chaves-pix'],
     enabled: open,
-    queryFn: () =>
-      api<ChavePix[]>(`/painel/empresas/${empresaIdPublico}/chaves-pix`, { token }),
+    queryFn: () => api<ChavePix[]>('/painel/chaves-pix', { token }),
   });
   const aprovadas = (chaves.data ?? []).filter((c) => c.situacao === 'APROVADA');
   const pendentesOuReprovadas = (chaves.data ?? []).filter(
@@ -219,7 +214,6 @@ export function SaqueModal({ open, onClose, empresaIdPublico, token }: ModalProp
     mutationFn: () =>
       api('/painel/transacoes/saques', {
         token,
-        empresaId: empresaIdPublico,
         method: 'POST',
         body: JSON.stringify({ valor, chavePixIdPublico: chaveSel }),
       }),
@@ -237,7 +231,7 @@ export function SaqueModal({ open, onClose, empresaIdPublico, token }: ModalProp
 
   const registrar = useMutation({
     mutationFn: () =>
-      api(`/painel/empresas/${empresaIdPublico}/chaves-pix`, {
+      api('/painel/chaves-pix', {
         token,
         method: 'POST',
         body: JSON.stringify({
@@ -253,7 +247,7 @@ export function SaqueModal({ open, onClose, empresaIdPublico, token }: ModalProp
       setApelido('');
       setNomeTitular('');
       setErro(null);
-      void qc.invalidateQueries({ queryKey: ['chaves-pix', empresaIdPublico] });
+      void qc.invalidateQueries({ queryKey: ['chaves-pix'] });
     },
     onError: (e) => setErro(mensagemErro(e)),
   });
@@ -403,7 +397,7 @@ export function SaqueModal({ open, onClose, empresaIdPublico, token }: ModalProp
   );
 }
 
-function CredencialModal({ open, onClose, empresaIdPublico, token }: ModalProps) {
+function CredencialModal({ open, onClose, token }: ModalProps) {
   const [nome, setNome] = useState('');
   const [ips, setIps] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -412,7 +406,7 @@ function CredencialModal({ open, onClose, empresaIdPublico, token }: ModalProps)
 
   const criar = useMutation({
     mutationFn: () =>
-      api<NovaCredencial>(`/empresas/${empresaIdPublico}/credenciais`, {
+      api<NovaCredencial>('/painel/credenciais', {
         token,
         method: 'POST',
         body: JSON.stringify({
