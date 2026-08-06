@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 export type Coluna<T> = {
   chave: string;
@@ -12,16 +13,24 @@ export type Coluna<T> = {
 /** Barra de filtros no topo de uma listagem (layout mobile-first). */
 export function BarraFiltros({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-ink-800/10 bg-white p-3 dark:border-white/10 dark:bg-ink-900">
+    <div className="mb-4 flex flex-wrap items-end gap-x-4 gap-y-3 rounded-lg border border-ink-800/10 bg-white p-4 dark:border-white/10 dark:bg-ink-900">
       {children}
     </div>
   );
 }
 
-const rotuloInput =
-  'flex flex-col text-xs font-medium opacity-70';
-const controle =
-  'mt-1 rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-sm font-normal opacity-100 dark:border-white/15 dark:bg-ink-900';
+/**
+ * Classes do campo de filtro (rótulo + controle). Exportadas para filtros
+ * ad-hoc (data, etc.) ficarem alinhados aos `Filtro*` dentro da `BarraFiltros`:
+ * ocupam a largura toda no mobile e viram colunas de largura igual no desktop.
+ */
+export const campoFiltro =
+  'flex min-w-[10rem] flex-1 basis-48 flex-col gap-1.5 text-xs font-medium text-ink-800/60 dark:text-white/60 sm:max-w-xs';
+export const controleFiltro =
+  'h-10 w-full rounded-md border border-ink-800/15 bg-white px-3 text-sm font-normal text-ink-950 outline-none transition [color-scheme:light] placeholder:text-ink-800/40 focus:border-accent focus:ring-2 focus:ring-accent/25 dark:border-white/15 dark:bg-ink-950 dark:text-white dark:[color-scheme:dark] dark:placeholder:text-white/35';
+
+const rotuloInput = campoFiltro;
+const controle = controleFiltro;
 
 /** Campo select padronizado para a barra de filtros. */
 export function FiltroSelect({
@@ -38,9 +47,21 @@ export function FiltroSelect({
   return (
     <label className={rotuloInput}>
       {label}
-      <select className={controle} value={value} onChange={(e) => onChange(e.target.value)}>
-        {children}
-      </select>
+      {/* Seta própria: a nativa fica colada na borda e não acompanha o tema. */}
+      <span className="relative block">
+        <select
+          className={`${controle} cursor-pointer appearance-none pr-9`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {children}
+        </select>
+        <ChevronDown
+          aria-hidden
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-800/60 dark:text-white/60"
+          strokeWidth={1.75}
+        />
+      </span>
     </label>
   );
 }
@@ -70,6 +91,48 @@ export function FiltroTexto({
   );
 }
 
+/** Campo de data padronizado para a barra de filtros. */
+export function FiltroData({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className={rotuloInput}>
+      {label}
+      <input
+        type="date"
+        className={controle}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
+/** Botão "Limpar" da barra de filtros — alinhado à altura dos campos. */
+export function BotaoLimparFiltros({
+  onClick,
+  children = 'Limpar',
+}: {
+  onClick: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="h-10 w-full shrink-0 rounded-md border border-ink-800/15 px-4 text-sm text-accent transition hover:bg-accent/10 sm:w-auto dark:border-white/15"
+    >
+      {children}
+    </button>
+  );
+}
+
 /** Opções de tamanho de página para as telas de administrador. */
 export const OPCOES_POR_PAGINA = [10, 25, 50, 100, 500, 1000];
 
@@ -82,19 +145,26 @@ export function SeletorPorPagina({
   onChange: (n: number) => void;
 }) {
   return (
-    <label className="flex items-center gap-1.5 text-xs opacity-70">
+    <label className="flex items-center gap-1.5 text-xs text-ink-800/60 dark:text-white/60">
       Por página
-      <select
-        className="rounded border border-ink-800/15 bg-white px-1.5 py-1 text-xs dark:border-white/15 dark:bg-ink-900"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      >
-        {OPCOES_POR_PAGINA.map((n) => (
-          <option key={n} value={n}>
-            {n}
-          </option>
-        ))}
-      </select>
+      <span className="relative block">
+        <select
+          className="h-8 cursor-pointer appearance-none rounded-md border border-ink-800/15 bg-white pl-2.5 pr-7 text-xs text-ink-950 outline-none transition [color-scheme:light] focus:border-accent focus:ring-2 focus:ring-accent/25 dark:border-white/15 dark:bg-ink-950 dark:text-white dark:[color-scheme:dark]"
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+        >
+          {OPCOES_POR_PAGINA.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden
+          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-800/60 dark:text-white/60"
+          strokeWidth={1.75}
+        />
+      </span>
     </label>
   );
 }

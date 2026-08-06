@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
 import { BarraFiltros, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { badgeDocumento as badge, DocumentosAdmin } from '@/components/documentos-admin';
+import { IdadeSolicitacao } from '@/components/status';
 import { api, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
@@ -22,36 +23,59 @@ type UsuarioAdmin = {
   documentos: { total: number; pendentes: number; validos: number; invalidos: number };
 };
 
-const SITUACOES = ['EM_ANALISE', 'PENDENTE', 'ATIVO', 'REPROVADO'] as const;
+/**
+ * PENDENTE (aguardando o cliente enviar documento) e EM_ANALISE (aguardando o
+ * admin decidir) são as duas situações que ainda precisam de alguma ação —
+ * ficam juntas na aba "Pendências" para quem abre a tela ver a fila inteira,
+ * não só metade dela. ATIVO/REPROVADO são desfecho: histórico, não fila.
+ */
+const ABAS = [
+  { chave: 'PENDENCIAS', label: 'Pendências', situacoes: ['PENDENTE', 'EM_ANALISE'] },
+  { chave: 'ATIVO', label: 'Ativos', situacoes: ['ATIVO'] },
+  { chave: 'REPROVADO', label: 'Reprovados', situacoes: ['REPROVADO'] },
+] as const;
 
 export default function AprovacoesPage() {
   const { token, pode } = useAuth();
   const podeAprovar = pode(PERMISSOES.ADMIN_APROVACOES_APROVAR);
   const qc = useQueryClient();
-  const [situacao, setSituacao] = useState<(typeof SITUACOES)[number]>('EM_ANALISE');
+  const [aba, setAba] = useState<(typeof ABAS)[number]['chave']>('PENDENCIAS');
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
   const [tamanho, setTamanho] = useState(10);
   const [aberto, setAberto] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
+  const abaAtual = ABAS.find((a) => a.chave === aba)!;
+  const naFilaPendencias = aba === 'PENDENCIAS';
+
   const usuarios = useQuery({
-    queryKey: ['admin-usuarios', situacao],
+    queryKey: ['admin-usuarios', aba],
     enabled: !!token,
     queryFn: () =>
-      api<UsuarioAdmin[]>(`/admin/usuarios?situacao=${situacao}`, { token: token! }),
+      api<UsuarioAdmin[]>(
+        `/admin/usuarios?situacao=${abaAtual.situacoes.join(',')}`,
+        { token: token! },
+      ),
   });
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const lista = usuarios.data ?? [];
-    if (!q) return lista;
-    return lista.filter(
-      (u) =>
-        u.nomeRazaoSocial.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q),
-    );
-  }, [usuarios.data, busca]);
+    let lista = usuarios.data ?? [];
+    if (q) {
+      lista = lista.filter(
+        (u) =>
+          u.nomeRazaoSocial.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q),
+      );
+    }
+    // Na fila de pendências, quem chegou primeiro aparece primeiro — é a ordem
+    // natural de atendimento; nas abas de desfecho o mais recente no topo
+    // (auditoria) já vem certo da API.
+    return naFilaPendencias
+      ? [...lista].sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))
+      : lista;
+  }, [usuarios.data, busca, naFilaPendencias]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / tamanho));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -63,11 +87,13 @@ export default function AprovacoesPage() {
   // Volta à primeira página quando muda a aba de status ou a busca.
   useEffect(() => {
     setPagina(1);
-  }, [situacao, busca]);
+  }, [aba, busca]);
 
   const invalidate = () => {
     setErro(null);
     void qc.invalidateQueries({ queryKey: ['admin-usuarios'] });
+    // Badge de pendências do menu lateral reflete a decisão na hora.
+    void qc.invalidateQueries({ queryKey: ['admin-pendencias'] });
   };
   const onErro = (e: unknown) =>
     setErro(e instanceof Error ? e.message : 'Operação falhou');
@@ -97,18 +123,18 @@ export default function AprovacoesPage() {
       </p>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        {SITUACOES.map((s) => (
+        {ABAS.map((a) => (
           <button
-            key={s}
+            key={a.chave}
             type="button"
-            onClick={() => setSituacao(s)}
+            onClick={() => setAba(a.chave)}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
-              situacao === s
+              aba === a.chave
                 ? 'border-accent bg-accent text-accent-foreground'
                 : 'border-ink-800/15 opacity-70 dark:border-white/15'
             }`}
           >
-            {s}
+            {a.label}
           </button>
         ))}
       </div>
@@ -142,6 +168,11 @@ export default function AprovacoesPage() {
                 </p>
                 <p className="truncate text-xs opacity-60">
                   {u.email} · {formatarDocumento(u.cpfCnpj)}
+                </p>
+                <p className="mt-0.5 text-xs opacity-60">
+                  Solicitado em {new Date(u.criadoEm).toLocaleDateString('pt-BR')}
+                  {' · '}
+                  <IdadeSolicitacao desde={u.criadoEm} />
                 </p>
                 {u.tipoPessoa === 'PJ' && u.responsavel?.cpf && (
                   <p className="truncate text-xs opacity-60">
@@ -245,7 +276,7 @@ export default function AprovacoesPage() {
           <li className="rounded-lg border border-dashed border-ink-800/20 p-6 text-center text-sm opacity-70 dark:border-white/20">
             {busca.trim()
               ? `Nenhum cadastro corresponde à busca "${busca.trim()}".`
-              : `Nenhum cadastro com situação ${situacao}.`}
+              : `Nenhum cadastro em ${abaAtual.label.toLowerCase()}.`}
           </li>
         )}
       </ul>

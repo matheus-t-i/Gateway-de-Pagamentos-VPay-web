@@ -7,6 +7,7 @@ import { Shell } from '@/components/shell';
 import {
   BarraFiltros,
   Coluna,
+  FiltroData,
   FiltroSelect,
   FiltroTexto,
   SeletorPorPagina,
@@ -564,30 +565,22 @@ export default function SaldosPage() {
                 </option>
               ))}
             </FiltroSelect>
-            <label className="flex flex-col text-xs font-medium opacity-70">
-              Data inicial
-              <input
-                type="date"
-                className="mt-1 rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-sm dark:border-white/15 dark:bg-ink-900"
-                value={eDataInicial}
-                onChange={(e) => {
-                  setEDataInicial(e.target.value);
-                  setEPagina(1);
-                }}
-              />
-            </label>
-            <label className="flex flex-col text-xs font-medium opacity-70">
-              Data final
-              <input
-                type="date"
-                className="mt-1 rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-sm dark:border-white/15 dark:bg-ink-900"
-                value={eDataFinal}
-                onChange={(e) => {
-                  setEDataFinal(e.target.value);
-                  setEPagina(1);
-                }}
-              />
-            </label>
+            <FiltroData
+              label="Data inicial"
+              value={eDataInicial}
+              onChange={(v) => {
+                setEDataInicial(v);
+                setEPagina(1);
+              }}
+            />
+            <FiltroData
+              label="Data final"
+              value={eDataFinal}
+              onChange={(v) => {
+                setEDataFinal(v);
+                setEPagina(1);
+              }}
+            />
             <div className="ml-auto self-end">
               <SeletorPorPagina
                 value={eLimite}

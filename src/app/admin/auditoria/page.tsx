@@ -3,7 +3,7 @@
 import { Fragment, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
-import { BarraFiltros, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
+import { BarraFiltros, FiltroData, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -39,9 +39,6 @@ type Resposta = {
   pagina: number;
   itens: Persistencia[] | Acesso[];
 };
-
-const dateCls =
-  'mt-1 rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-sm dark:border-white/15 dark:bg-ink-900';
 
 const badgeSucesso = (ok: boolean) =>
   ok
@@ -120,14 +117,8 @@ export default function AuditoriaPage() {
 
       <div className="mt-4">
         <BarraFiltros>
-          <label className="flex flex-col text-xs font-medium opacity-70">
-            Data inicial
-            <input type="date" className={dateCls} value={dataInicial} onChange={(e) => { setDataInicial(e.target.value); reset(); }} />
-          </label>
-          <label className="flex flex-col text-xs font-medium opacity-70">
-            Data final
-            <input type="date" className={dateCls} value={dataFinal} onChange={(e) => { setDataFinal(e.target.value); reset(); }} />
-          </label>
+          <FiltroData label="Data inicial" value={dataInicial} onChange={(v) => { setDataInicial(v); reset(); }} />
+          <FiltroData label="Data final" value={dataFinal} onChange={(v) => { setDataFinal(v); reset(); }} />
           {fonte === 'persistencia' ? (
             <>
               <FiltroTexto label="Ator" value={ator} onChange={(v) => { setAtor(v); reset(); }} placeholder="nome ou e-mail" />

@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import {
+  Activity,
   ArrowDownToLine,
-  ArrowLeftRight,
   ArrowUpFromLine,
   Banknote,
   BookOpen,
@@ -20,6 +20,7 @@ import {
   LifeBuoy,
   LineChart,
   Menu,
+  Plug,
   ScrollText,
   Server,
   Settings2,
@@ -32,9 +33,11 @@ import {
   X,
   type LucideProps,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Marca } from '@/components/marca';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { permissaoDaRota, type CodigoPermissao } from '@/lib/permissoes';
+import { PERMISSOES, permissaoDaRota, type CodigoPermissao } from '@/lib/permissoes';
 
 type Icone = ComponentType<LucideProps>;
 
@@ -61,7 +64,10 @@ const GRUPOS: NavGrupo[] = [
     links: [
       { href: '/dashboard', label: 'Dashboard', icone: LayoutDashboard },
       { href: '/faturamento', label: 'Faturamento', icone: Trophy },
-      { href: '/transacoes', label: 'Transações', icone: ArrowLeftRight },
+      // PIX in e PIX out em telas separadas: colunas diferentes e sentido do
+      // dinheiro óbvio já pelo item de menu.
+      { href: '/transacoes', label: 'Transações', icone: ArrowDownToLine },
+      { href: '/transferencias', label: 'Transferências', icone: ArrowUpFromLine },
     ],
   },
   {
@@ -80,6 +86,7 @@ const GRUPOS: NavGrupo[] = [
         children: [
           { href: '/desenvolvedores/chaves', label: 'Chaves de API', icone: KeyRound },
           { href: '/desenvolvedores/webhooks', label: 'Webhooks', icone: Webhook },
+          { href: '/desenvolvedores/integracoes', label: 'Integrações', icone: Plug },
           { href: '/desenvolvedores/documentacao', label: 'Documentação', icone: BookOpen },
         ],
       },
@@ -116,6 +123,11 @@ const GRUPOS: NavGrupo[] = [
             label: 'Lucro × Custo',
             icone: LineChart,
           },
+          {
+            href: '/admin/relatorios/metodo',
+            label: 'Relatório Método',
+            icone: Activity,
+          },
         ],
       },
       {
@@ -132,6 +144,8 @@ const GRUPOS: NavGrupo[] = [
         label: 'Plataforma',
         icone: Server,
         children: [
+          { href: '/admin/retencao', label: 'Retenção', icone: Clock },
+          { href: '/admin/med-automatico', label: 'MED automático', icone: ShieldAlert },
           { href: '/admin/filas', label: 'Filas', icone: Layers },
           { href: '/admin/auditoria', label: 'Auditoria', icone: ScrollText },
         ],
@@ -160,18 +174,57 @@ function filtrarNavegacao(
   })).filter((g) => g.links.length > 0);
 }
 
+/**
+ * Contagem de pendências por rota, para os badges do menu. Só consulta se o
+ * perfil enxerga alguma das telas de pendência; atualiza a cada 60s para o
+ * analista ver chegar pendência sem recarregar a página.
+ */
+function usePendencias(): Record<string, number> {
+  const { token, pode } = useAuth();
+  const habilitado =
+    !!token &&
+    (pode(PERMISSOES.ADMIN_APROVACOES_VER) || pode(PERMISSOES.ADMIN_CHAVES_PIX_VER));
+  const { data } = useQuery({
+    queryKey: ['admin-pendencias'],
+    enabled: habilitado,
+    refetchInterval: 60_000,
+    queryFn: () =>
+      api<{ aprovacoes: number | null; chavesPix: number | null }>(
+        '/admin/pendencias/contagem',
+        { token: token! },
+      ),
+  });
+  return {
+    '/admin/aprovacoes': data?.aprovacoes ?? 0,
+    '/admin/chaves-pix': data?.chavesPix ?? 0,
+  };
+}
+
+/** Número de pendências ao lado do item de menu. Some quando não há nada. */
+function BadgePendencias({ total }: { total?: number }) {
+  if (!total || total <= 0) return null;
+  return (
+    <span className="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-semibold tabular-nums text-accent-foreground">
+      {total > 99 ? '99+' : total}
+      <span className="sr-only"> pendências</span>
+    </span>
+  );
+}
+
 function LinkNav({
   href,
   label,
   icone: Icone,
   onNavegar,
   indentado,
+  pendencias,
 }: {
   href: string;
   label: string;
   icone?: Icone;
   onNavegar?: () => void;
   indentado?: boolean;
+  pendencias?: number;
 }) {
   const pathname = usePathname();
   const ativo = pathname === href || pathname.startsWith(href + '/');
@@ -196,6 +249,7 @@ function LinkNav({
         />
       )}
       <span className="min-w-0 flex-1 truncate">{label}</span>
+      <BadgePendencias total={pendencias} />
       {ativo && (
         <span
           aria-hidden
@@ -212,12 +266,18 @@ function SubMenu({
   icone: Icone,
   children,
   onNavegar,
+  pendencias,
 }: {
   label: string;
   icone: Icone;
   children: NavLink[];
   onNavegar?: () => void;
+  pendencias?: Record<string, number>;
 }) {
+  const totalPendencias = children.reduce(
+    (soma, c) => soma + (pendencias?.[c.href] ?? 0),
+    0,
+  );
   const pathname = usePathname();
   const algumAtivo = children.some(
     (c) => pathname === c.href || pathname.startsWith(c.href + '/'),
@@ -246,6 +306,7 @@ function SubMenu({
           strokeWidth={1.75}
         />
         <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        <BadgePendencias total={totalPendencias} />
         <ChevronRight
           className={`h-3.5 w-3.5 shrink-0 opacity-45 transition-transform duration-200 ${
             aberto ? 'rotate-90' : ''
@@ -263,6 +324,7 @@ function SubMenu({
               icone={c.icone}
               onNavegar={onNavegar}
               indentado
+              pendencias={pendencias?.[c.href]}
             />
           ))}
         </div>
@@ -274,6 +336,7 @@ function SubMenu({
 function Navegacao({ onNavegar }: { onNavegar?: () => void }) {
   const { pode } = useAuth();
   const grupos = filtrarNavegacao(pode);
+  const pendencias = usePendencias();
 
   return (
     <nav className="mt-3 flex-1 space-y-6 overflow-y-auto pb-4 lg:mt-4">
@@ -291,6 +354,7 @@ function Navegacao({ onNavegar }: { onNavegar?: () => void }) {
                   icone={l.icone}
                   children={l.children}
                   onNavegar={onNavegar}
+                  pendencias={pendencias}
                 />
               ) : (
                 <LinkNav
@@ -299,6 +363,7 @@ function Navegacao({ onNavegar }: { onNavegar?: () => void }) {
                   label={l.label}
                   icone={l.icone}
                   onNavegar={onNavegar}
+                  pendencias={pendencias[l.href]}
                 />
               ),
             )}
@@ -337,24 +402,6 @@ function PainelLateral({
       </div>
       <Navegacao onNavegar={onNavegar} />
     </div>
-  );
-}
-
-/**
- * Identificação da conta, no topo à direita. Um usuário É uma conta, então não
- * há o que trocar: isto é rótulo, não seletor.
- */
-function NomeDaConta() {
-  const { usuario } = useAuth();
-  const nome = usuario?.nomeFantasia || usuario?.nomeRazaoSocial;
-  if (!nome) return null;
-  return (
-    <span
-      title={nome}
-      className="hidden max-w-[9rem] truncate rounded-md border border-ink-800/15 px-2 py-1.5 text-sm dark:border-white/15 sm:inline-block sm:max-w-[14rem]"
-    >
-      {nome}
-    </span>
   );
 }
 
@@ -627,7 +674,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <ContadorSessao />
             <IndicadorDoisFatores />
-            <NomeDaConta />
             <MenuUsuario />
           </div>
         </header>

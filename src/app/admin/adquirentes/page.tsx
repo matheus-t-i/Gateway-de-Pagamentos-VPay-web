@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
 import {
   BarraFiltros,
+  BotaoLimparFiltros,
   Coluna,
   FiltroSelect,
   FiltroTexto,
@@ -15,7 +16,6 @@ import {
   ClientesAdquirenteModal,
   EditarAdquirenteModal,
   NovaAdquirenteModal,
-  TaxaPadraoModal,
 } from '@/components/adquirente-modais';
 import { TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
@@ -50,7 +50,6 @@ export default function AdquirentesPage() {
   const [erroAlt, setErroAlt] = useState<string | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
   const [clientesDe, setClientesDe] = useState<string | null>(null);
-  const [taxaAberto, setTaxaAberto] = useState(false);
   const [novaAberto, setNovaAberto] = useState(false);
 
   const adquirentes = useQuery({
@@ -192,13 +191,6 @@ export default function AdquirentesPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setTaxaAberto(true)}
-            className="rounded-md border border-ink-800/15 px-4 py-2 text-sm font-medium hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
-          >
-            Taxas padrão
-          </button>
           {podeCriar && (
             <button
               type="button"
@@ -238,16 +230,12 @@ export default function AdquirentesPage() {
             ))}
           </FiltroSelect>
           {(busca || fSituacao) && (
-            <button
-              type="button"
-              className="text-sm text-accent underline"
+            <BotaoLimparFiltros
               onClick={() => {
                 setBusca('');
                 setFSituacao('');
               }}
-            >
-              Limpar
-            </button>
+            />
           )}
         </BarraFiltros>
 
@@ -274,7 +262,6 @@ export default function AdquirentesPage() {
             token={token}
             onClose={() => setClientesDe(null)}
           />
-          <TaxaPadraoModal open={taxaAberto} token={token} onClose={() => setTaxaAberto(false)} />
           <NovaAdquirenteModal open={novaAberto} token={token} onClose={() => setNovaAberto(false)} />
         </>
       )}

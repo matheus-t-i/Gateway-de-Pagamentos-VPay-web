@@ -8,6 +8,11 @@
   --accent: #ffc107;
   --accent-foreground: #0a0a0a;
   --accent-strong: #ff3300;
+  /* série 1 = geradas, série 2 = aprovadas — validadas p/ CVD e contraste por superfície */
+  --chart-1: #0ea5e9;
+  --chart-2: #f59e0b;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: rgba(10, 10, 10, 0.12);
 }
 
 .dark {
@@ -16,6 +21,10 @@
   --accent: #ffc107;
   --accent-foreground: #0a0a0a;
   --accent-strong: #ff4d1a;
+  --chart-1: #0284c7;
+  --chart-2: #d97706;
+  --chart-tooltip-bg: #1f1f1f;
+  --chart-tooltip-border: rgba(255, 255, 255, 0.14);
 }
 
 body {
@@ -23,4 +32,40 @@ body {
     radial-gradient(1200px 600px at 10% -10%, rgba(255, 193, 7, 0.14), transparent 60%),
     radial-gradient(900px 500px at 100% 0%, rgba(255, 51, 0, 0.06), transparent 50%),
     var(--bg);
+}
+
+/* brilho que percorre barras de progresso (faturamento) */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.4s ease-in-out infinite;
+}
+
+/* pulso suave para o marco atual da trilha */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 24px 4px rgba(255, 193, 7, 0.18);
+  }
+}
+
+.animate-glow {
+  animation: glow-pulse 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-glow {
+    animation: none;
+  }
 }

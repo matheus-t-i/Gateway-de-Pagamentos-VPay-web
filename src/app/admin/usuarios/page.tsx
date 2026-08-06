@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { SlidersHorizontal } from 'lucide-react';
 import { Shell } from '@/components/shell';
+import { ConfigPadraoModal } from '@/components/config-padrao-modal';
 import {
   BarraFiltros,
   Coluna,
@@ -15,6 +17,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
+import { PERMISSOES } from '@/lib/permissoes';
 
 type Usuario = {
   idPublico: string;
@@ -45,11 +48,12 @@ const corSituacao = (s: string) => {
 };
 
 export default function UsuariosAdminPage() {
-  const { token } = useAuth();
+  const { token, pode } = useAuth();
   const [busca, setBusca] = useState('');
   const [fSituacao, setFSituacao] = useState('');
   const [pagina, setPagina] = useState(1);
   const [limite, setLimite] = useState(10);
+  const [padraoAberto, setPadraoAberto] = useState(false);
 
   const reset = () => setPagina(1);
 
@@ -102,10 +106,32 @@ export default function UsuariosAdminPage() {
 
   return (
     <Shell>
-      <h1 className="font-display text-3xl font-semibold">Usuários</h1>
-      <p className="mt-1 text-sm opacity-70">
-        Gestão de cadastros: status, taxas e adquirente de roteamento por usuário.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl font-semibold">Usuários</h1>
+          <p className="mt-1 text-sm opacity-70">
+            Gestão de cadastros: status, taxas, liberação de saldo, reserva, MED e
+            adquirente de roteamento por usuário.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setPadraoAberto(true)}
+          className="inline-flex items-center gap-2 rounded-md border border-ink-800/15 px-4 py-2 text-sm font-medium transition hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+        >
+          <SlidersHorizontal className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+          Padrão de novos clientes
+        </button>
+      </div>
+
+      {token && (
+        <ConfigPadraoModal
+          open={padraoAberto}
+          token={token}
+          podeEditar={pode(PERMISSOES.ADMIN_USUARIOS_EDITAR)}
+          onClose={() => setPadraoAberto(false)}
+        />
+      )}
 
       <div className="mt-6">
         <BarraFiltros>

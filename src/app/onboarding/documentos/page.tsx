@@ -186,13 +186,32 @@ export default function OnboardingDocumentosPage() {
               required
             />
           </label>
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          {erro && (
+            <div className="rounded-md border border-red-500/30 bg-red-50 px-3 py-2.5 dark:bg-red-950/30">
+              <p className="text-sm text-red-700 dark:text-red-300">{erro}</p>
+              {/* Esta tela é para quem AINDA não tem acesso. Conta já aprovada
+                  (ou reprovada) cai aqui sem ter para onde ir — o caminho de
+                  volta precisa estar visível junto do erro. */}
+              <Link
+                href="/login"
+                className="mt-1.5 inline-block text-sm font-medium text-red-700 underline dark:text-red-300"
+              >
+                Ir para a tela de login
+              </Link>
+            </div>
+          )}
           <button
             type="submit"
             className="w-full rounded-md bg-accent px-4 py-2.5 font-medium text-accent-foreground transition hover:opacity-90"
           >
             Continuar
           </button>
+          <p className="text-center text-sm opacity-70">
+            Já tem acesso?{' '}
+            <Link href="/login" className="font-medium text-accent underline">
+              Entrar na conta
+            </Link>
+          </p>
         </form>
       )}
 

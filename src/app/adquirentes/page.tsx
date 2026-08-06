@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
 import {
   BarraFiltros,
+  BotaoLimparFiltros,
   Coluna,
   FiltroSelect,
   FiltroTexto,
@@ -207,16 +208,12 @@ export default function AdquirentesClientePage() {
             <option value="false">Não</option>
           </FiltroSelect>
           {(busca || fMed) && (
-            <button
-              type="button"
-              className="text-sm text-accent underline"
+            <BotaoLimparFiltros
               onClick={() => {
                 setBusca('');
                 setFMed('');
               }}
-            >
-              Limpar
-            </button>
+            />
           )}
         </BarraFiltros>
 

@@ -318,11 +318,20 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
           )}
 
           {pendentesOuReprovadas.length > 0 && (
-            <ul className="space-y-1 text-xs">
+            <ul className="space-y-1.5 text-xs">
               {pendentesOuReprovadas.map((c) => (
-                <li key={c.idPublico} className="flex items-center justify-between gap-2">
-                  <span className="truncate">{c.chave}</span>
-                  <span className="shrink-0 opacity-60">{c.situacao}</span>
+                <li key={c.idPublico}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate">{c.chave}</span>
+                    <span className="shrink-0 opacity-60">{c.situacao}</span>
+                  </div>
+                  {/* Chave reprovada ou desativada pelo admin: sem o motivo aqui,
+                      o cliente só veria o status e abriria chamado para perguntar. */}
+                  {c.motivoReprovacao && (
+                    <p className="mt-0.5 text-[11px] text-red-600 dark:text-red-400">
+                      {c.motivoReprovacao}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

@@ -2,7 +2,9 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, X } from 'lucide-react';
 import { Shell } from '@/components/shell';
+import { Modal, ModalAcoes } from '@/components/modal';
 import { TextoRotulo } from '@/components/obrigatorio';
 import {
   BarraFiltros,
@@ -33,10 +35,155 @@ type NovaCredencial = {
   aviso: string;
 };
 
+const inputCls =
+  'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25 dark:border-white/10 dark:bg-ink-900';
+
+/**
+ * Edição de uma chave já emitida: nome e allowlist de IP.
+ *
+ * A allowlist é editada como lista de itens (adicionar/remover um a um), não
+ * como um campo de texto separado por vírgula: quem só quer liberar mais um IP
+ * não precisa reescrever — nem arriscar apagar sem querer — os que já valem.
+ */
+function ModalEditar({
+  credencial,
+  token,
+  onFechar,
+  onSalvo,
+}: {
+  credencial: Credencial;
+  token: string;
+  onFechar: () => void;
+  onSalvo: () => void;
+}) {
+  const [nome, setNome] = useState(credencial.nome);
+  const [ips, setIps] = useState<string[]>(credencial.ipsPermitidos);
+  const [novoIp, setNovoIp] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+
+  const salvar = useMutation({
+    mutationFn: () =>
+      api<Credencial>(`/painel/credenciais/${credencial.id}`, {
+        token,
+        method: 'PUT',
+        body: JSON.stringify({ nome, ipsPermitidos: ips }),
+      }),
+    onSuccess: () => {
+      onSalvo();
+      onFechar();
+    },
+    onError: (e) => setErro(e instanceof Error ? e.message : 'Falha ao salvar'),
+  });
+
+  function adicionarIp() {
+    const valor = novoIp.trim();
+    if (!valor) return;
+    if (ips.includes(valor)) {
+      setErro('Este IP já está na lista.');
+      return;
+    }
+    setIps((atual) => [...atual, valor]);
+    setNovoIp('');
+    setErro(null);
+  }
+
+  return (
+    <Modal open onClose={onFechar} title={`Editar ${credencial.nome}`}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setErro(null);
+          salvar.mutate();
+        }}
+        className="space-y-4"
+      >
+        <p className="rounded-lg bg-ink-800/[0.03] px-3 py-2 font-mono text-xs break-all opacity-70 dark:bg-white/[0.03]">
+          {credencial.chavePublica}
+        </p>
+
+        <label className="block text-sm">
+          <TextoRotulo obrigatorio>Nome</TextoRotulo>
+          <input
+            className={inputCls}
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            required
+          />
+        </label>
+
+        <div className="text-sm">
+          <p className="font-medium">IPs permitidos</p>
+          <p className="mt-0.5 text-xs opacity-60">
+            Lista vazia libera qualquer origem. Aceita IP (203.0.113.10) ou faixa
+            (198.51.100.0/24).
+          </p>
+
+          {/* Enter adiciona o IP; sem `type="button"` no botão, o Enter do campo
+              submeteria o formulário inteiro em vez de incluir na lista. */}
+          <div className="mt-2 flex gap-2">
+            <input
+              className={`${inputCls} mt-0 flex-1 font-mono`}
+              value={novoIp}
+              onChange={(e) => setNovoIp(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  adicionarIp();
+                }
+              }}
+              placeholder="203.0.113.10"
+            />
+            <button
+              type="button"
+              onClick={adicionarIp}
+              disabled={!novoIp.trim()}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-ink-800/15 px-3 text-sm font-medium transition hover:bg-ink-800/5 disabled:opacity-40 dark:border-white/15 dark:hover:bg-white/5"
+            >
+              <Plus className="h-4 w-4" strokeWidth={2} aria-hidden />
+              Adicionar
+            </button>
+          </div>
+
+          {ips.length > 0 ? (
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {ips.map((ip) => (
+                <li
+                  key={ip}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-ink-800/[0.06] py-1 pl-3 pr-1.5 font-mono text-xs dark:bg-white/[0.08]"
+                >
+                  {ip}
+                  <button
+                    type="button"
+                    onClick={() => setIps((atual) => atual.filter((i) => i !== ip))}
+                    aria-label={`Remover ${ip}`}
+                    className="rounded-full p-0.5 opacity-60 transition hover:bg-red-500/20 hover:text-red-600 hover:opacity-100"
+                  >
+                    <X className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs">
+              Sem restrição de origem: esta chave funciona de qualquer IP.
+            </p>
+          )}
+        </div>
+
+        {erro && <p className="text-sm text-red-600">{erro}</p>}
+
+        <ModalAcoes onCancelar={onFechar} pendente={salvar.isPending} />
+      </form>
+    </Modal>
+  );
+}
+
 export default function ChavesApiPage() {
   const { token, pode } = useAuth();
   const podeCriar = pode(PERMISSOES.CHAVES_API_CRIAR);
+  const podeEditar = pode(PERMISSOES.CHAVES_API_EDITAR);
   const podeRevogar = pode(PERMISSOES.CHAVES_API_EXCLUIR);
+  const [editando, setEditando] = useState<Credencial | null>(null);
   const qc = useQueryClient();
   const [nome, setNome] = useState('');
   const [ips, setIps] = useState('');
@@ -113,9 +260,22 @@ export default function ChavesApiPage() {
     },
     {
       chave: 'ips',
-      titulo: 'IPs',
-      className: 'text-xs opacity-70',
-      render: (c) => (c.ipsPermitidos.length > 0 ? c.ipsPermitidos.join(', ') : '—'),
+      titulo: 'IPs permitidos',
+      render: (c) =>
+        c.ipsPermitidos.length > 0 ? (
+          <span className="flex flex-wrap gap-1">
+            {c.ipsPermitidos.map((ip) => (
+              <span
+                key={ip}
+                className="rounded bg-ink-800/[0.06] px-1.5 py-0.5 font-mono text-[11px] dark:bg-white/[0.08]"
+              >
+                {ip}
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="text-xs opacity-55">Qualquer origem</span>
+        ),
     },
     {
       chave: 'situacao',
@@ -137,14 +297,27 @@ export default function ChavesApiPage() {
       titulo: 'Ações',
       className: 'text-right',
       render: (c) =>
-        c.ativo && podeRevogar ? (
-          <button
-            type="button"
-            onClick={() => revogar.mutate(c.id)}
-            className="text-xs text-red-600 underline"
-          >
-            Revogar
-          </button>
+        c.ativo ? (
+          <span className="flex justify-end gap-3">
+            {podeEditar && (
+              <button
+                type="button"
+                onClick={() => setEditando(c)}
+                className="text-xs underline"
+              >
+                Editar
+              </button>
+            )}
+            {podeRevogar && (
+              <button
+                type="button"
+                onClick={() => revogar.mutate(c.id)}
+                className="text-xs text-red-600 underline"
+              >
+                Revogar
+              </button>
+            )}
+          </span>
         ) : null,
     },
   ];
@@ -242,6 +415,15 @@ export default function ChavesApiPage() {
               vazio="Nenhuma chave criada ainda."
             />
           </div>
+
+      {editando && token && (
+        <ModalEditar
+          credencial={editando}
+          token={token}
+          onFechar={() => setEditando(null)}
+          onSalvo={() => void qc.invalidateQueries({ queryKey: ['credenciais'] })}
+        />
+      )}
     </Shell>
   );
 }

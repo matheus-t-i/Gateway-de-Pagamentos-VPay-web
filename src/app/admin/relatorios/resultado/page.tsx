@@ -3,7 +3,7 @@
 import { Fragment, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
-import { BarraFiltros, FiltroSelect, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
+import { BarraFiltros, FiltroData, FiltroSelect, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
@@ -134,30 +134,8 @@ export default function RelatorioResultadoPage() {
 
       <div className="mt-6">
         <BarraFiltros>
-          <label className="flex flex-col text-xs font-medium opacity-70">
-            Data inicial
-            <input
-              type="date"
-              className="mt-1 rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-sm font-normal opacity-100 dark:border-white/15 dark:bg-ink-900"
-              value={dataInicial}
-              onChange={(e) => {
-                setDataInicial(e.target.value);
-                setPagina(1);
-              }}
-            />
-          </label>
-          <label className="flex flex-col text-xs font-medium opacity-70">
-            Data final
-            <input
-              type="date"
-              className="mt-1 rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-sm font-normal opacity-100 dark:border-white/15 dark:bg-ink-900"
-              value={dataFinal}
-              onChange={(e) => {
-                setDataFinal(e.target.value);
-                setPagina(1);
-              }}
-            />
-          </label>
+          <FiltroData label="Data inicial" value={dataInicial} onChange={(v) => { setDataInicial(v); setPagina(1); }} />
+          <FiltroData label="Data final" value={dataFinal} onChange={(v) => { setDataFinal(v); setPagina(1); }} />
           <FiltroTexto label="Cliente" value={cliente} onChange={(v) => { setCliente(v); setPagina(1); }} placeholder="nome, e-mail ou id" />
           <FiltroSelect label="Adquirente" value={adquirente} onChange={(v) => { setAdquirente(v); setPagina(1); }}>
             <option value="">Todas</option>

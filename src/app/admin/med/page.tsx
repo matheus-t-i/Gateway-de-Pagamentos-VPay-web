@@ -49,11 +49,14 @@ const badge: Record<string, string> = {
 const rotuloModo: Record<string, string> = {
   BLOQUEAR_SALDO: 'Bloquear saldo',
   DEBITAR_IMEDIATAMENTE: 'Debitar imediatamente',
-  ANALISE_MANUAL: 'Análise manual',
 };
 
-/** Situações que ainda aceitam decisão do analista. */
-const DECIDIVEIS = ['RECEBIDO', 'SALDO_BLOQUEADO', 'DEBITADO', 'EM_ANALISE'];
+/**
+ * Situações que ainda aceitam decisão do analista — espelha `DECIDIVEIS` de
+ * `MedService`. `DEBITADO` fica de fora: é a conta configurada para debitar sem
+ * análise, o caso já nasce encerrado e o valor já saiu do saldo.
+ */
+const DECIDIVEIS = ['RECEBIDO', 'SALDO_BLOQUEADO', 'EM_ANALISE'];
 
 function Detalhes({ idPublico, token }: { idPublico: string; token: string }) {
   const det = useQuery({
@@ -274,6 +277,15 @@ export default function MedPage() {
             {aberto === c.idPublico && token && (
               <div className="mt-4 border-t border-ink-800/10 pt-4 dark:border-white/10">
                 <Detalhes idPublico={c.idPublico} token={token} />
+
+                {c.situacao === 'DEBITADO' && (
+                  <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                    Conta configurada para debitar o MED sem análise: o valor já
+                    saiu do saldo e o caso está encerrado. Para voltar a analisar
+                    contestações deste cliente, mude o tratamento de MED no
+                    cadastro dele.
+                  </p>
+                )}
 
                 {DECIDIVEIS.includes(c.situacao) && podeDecidir && (
                   <div className="mt-4 flex flex-wrap gap-2">

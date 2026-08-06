@@ -59,6 +59,14 @@ export default function LoginPage() {
         setPrecisa2FA(true);
         return;
       }
+      // Antes do teste de ATIVO: a conta com senha provisória responde
+      // `situacao: ATIVO` mas SEM token — cair no /dashboard aqui só devolveria
+      // o usuário para o login pelo guarda do Shell.
+      if (res.requerTrocaSenha) {
+        salvarCredsOnboarding({ email, senha });
+        router.push('/senha/trocar');
+        return;
+      }
       if (res.situacao === 'ATIVO') {
         router.push('/dashboard');
         return;

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useTheme } from 'next-themes';
 import { api } from './api';
+import { limparCredsOnboarding } from './onboarding';
 import type { CodigoPermissao } from './permissoes';
 
 type Usuario = {
@@ -26,12 +27,15 @@ type Usuario = {
   permissoes?: string[];
   tipoPessoa?: 'PF' | 'PJ';
   totpHabilitado?: boolean;
+  /** Última troca de senha — exibida em Configurações. */
+  senhaAlteradaEm?: string | null;
   /** Carteira da conta — o usuário É a conta, então o saldo vem junto. */
   saldo?: {
     disponivel: string;
     pendenteLiberacao: string;
     reservado: string;
     bloqueadoMed: string;
+    bloqueadoManual: string;
   } | null;
 };
 
@@ -42,6 +46,8 @@ export type LoginResult = {
   motivo?: string | null;
   /** true quando a conta tem 2FA e o código ainda não foi informado. */
   requer2FA?: boolean;
+  /** true quando o admin redefiniu a senha e a troca ainda não foi feita. */
+  requerTrocaSenha?: boolean;
   documentosFaltantes?: string[];
 };
 
@@ -141,10 +147,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [setTheme],
   );
 
+  /**
+   * Encerra a sessão e leva ao login.
+   *
+   * O redirecionamento é explícito de propósito: antes o logout só limpava o
+   * estado e quem levava ao /login era um efeito do `Shell`. Fora dele — ou com
+   * credenciais de onboarding ainda guardadas na aba — o usuário ficava numa
+   * tela sem saída. Sair também descarta o onboarding: são credenciais de outra
+   * conta que não têm nada a ver com quem acabou de sair.
+   */
   const logout = useCallback(() => {
     localStorage.removeItem('vpay_token');
+    limparCredsOnboarding();
     setToken(null);
     setUsuario(null);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
   }, []);
 
   const expiraEm = useMemo(() => (token ? expiracaoDoToken(token) : null), [token]);

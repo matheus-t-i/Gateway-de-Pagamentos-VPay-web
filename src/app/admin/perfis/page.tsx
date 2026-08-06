@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Shell } from '@/components/shell';
+import { MembrosPerfil } from './membros-perfil';
 import { Modal, ModalAcoes } from '@/components/modal';
 import { TextoRotulo } from '@/components/obrigatorio';
 import {
@@ -80,6 +81,11 @@ export default function AdminPerfisPage() {
   const [situacao, setSituacao] = useState('');
   const [rascunho, setRascunho] = useState<Rascunho | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  /** Perfil cujos membros estão abertos no modal (null = fechado). */
+  const [membrosDe, setMembrosDe] = useState<{
+    nome: string;
+    descricao: string | null;
+  } | null>(null);
 
   const podeCriar = pode(PERMISSOES.ADMIN_PERFIS_CRIAR);
   const podeEditar = pode(PERMISSOES.ADMIN_PERFIS_EDITAR);
@@ -200,7 +206,16 @@ export default function AdminPerfisPage() {
     {
       chave: 'totalUsuarios',
       titulo: 'Usuários',
-      render: (p) => <span className="tabular-nums">{p.totalUsuarios}</span>,
+      render: (p) => (
+        <button
+          type="button"
+          onClick={() => setMembrosDe({ nome: p.nome, descricao: p.descricao })}
+          className="tabular-nums underline decoration-dotted underline-offset-2 transition hover:opacity-70"
+          title="Ver e alterar quem tem este perfil"
+        >
+          {p.totalUsuarios}
+        </button>
+      ),
     },
     {
       chave: 'totalPermissoes',
@@ -217,6 +232,13 @@ export default function AdminPerfisPage() {
       className: 'text-right',
       render: (p) => (
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setMembrosDe({ nome: p.nome, descricao: p.descricao })}
+            className="rounded border border-ink-800/15 px-3 py-1.5 text-xs font-medium dark:border-white/15"
+          >
+            Usuários
+          </button>
           <button
             type="button"
             onClick={() => void abrirEdicao(p.id)}
@@ -317,6 +339,18 @@ export default function AdminPerfisPage() {
         onMudar={setRascunho}
         onSalvar={() => rascunho && salvar.mutate(rascunho)}
       />
+
+      {membrosDe && token && (
+        <MembrosPerfil
+          perfil={membrosDe}
+          token={token}
+          podeEditar={podeEditar}
+          onFechar={() => {
+            setMembrosDe(null);
+            void qc.invalidateQueries({ queryKey: ['admin-perfis'] });
+          }}
+        />
+      )}
     </Shell>
   );
 }
