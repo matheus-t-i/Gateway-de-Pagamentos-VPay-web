@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 export type DocumentoAdmin = {
   id: string;
@@ -93,11 +94,20 @@ export function DocumentosAdmin({
   });
 
   const validar = useMutation({
-    mutationFn: (p: { id: string; situacao: 'VALIDO' | 'INVALIDO'; motivo?: string }) =>
+    mutationFn: (p: {
+      id: string;
+      situacao: 'VALIDO' | 'INVALIDO';
+      motivo?: string;
+      codigoTotp: string;
+    }) =>
       api(`/admin/documentos/${p.id}/validar`, {
         token,
         method: 'POST',
-        body: JSON.stringify({ situacao: p.situacao, motivo: p.motivo }),
+        body: JSON.stringify({
+          situacao: p.situacao,
+          motivo: p.motivo,
+          codigoTotp: p.codigoTotp,
+        }),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['admin-docs', idPublico] });
@@ -149,7 +159,11 @@ export function DocumentosAdmin({
                 <>
                   <button
                     type="button"
-                    onClick={() => validar.mutate({ id: d.id, situacao: 'VALIDO' })}
+                    onClick={() => {
+                      const codigoTotp = pedirCodigoTotp();
+                      if (!codigoTotp) return;
+                      validar.mutate({ id: d.id, situacao: 'VALIDO', codigoTotp });
+                    }}
                     className="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white"
                   >
                     Válido
@@ -158,9 +172,15 @@ export function DocumentosAdmin({
                     type="button"
                     onClick={() => {
                       const motivo = window.prompt('Motivo da invalidação:') ?? undefined;
-                      if (motivo !== undefined) {
-                        validar.mutate({ id: d.id, situacao: 'INVALIDO', motivo });
-                      }
+                      if (motivo === undefined) return;
+                      const codigoTotp = pedirCodigoTotp();
+                      if (!codigoTotp) return;
+                      validar.mutate({
+                        id: d.id,
+                        situacao: 'INVALIDO',
+                        motivo,
+                        codigoTotp,
+                      });
                     }}
                     className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white"
                   >

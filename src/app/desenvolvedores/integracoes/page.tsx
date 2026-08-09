@@ -18,6 +18,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import {
   type AppIntegracao,
   eventosPadraoDoApp,
@@ -96,10 +97,11 @@ export default function IntegracoesPage() {
   const nomeApp = (tipo: string) => apps.find((a) => a.tipo === tipo)?.nome ?? tipo;
 
   const testar = useMutation({
-    mutationFn: (id: string) =>
-      api<{ ok: boolean }>(`/painel/integracoes/${id}/testar`, {
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api<{ ok: boolean }>(`/painel/integracoes/${p.id}/testar`, {
         token: token!,
         method: 'POST',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
       }),
     onSuccess: () =>
       setAviso('Teste aceito pelo app: credencial e formato do pedido estão corretos.'),
@@ -107,8 +109,12 @@ export default function IntegracoesPage() {
   });
 
   const remover = useMutation({
-    mutationFn: (id: string) =>
-      api(`/painel/integracoes/${id}`, { token: token!, method: 'DELETE' }),
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api(`/painel/integracoes/${p.id}`, {
+        token: token!,
+        method: 'DELETE',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+      }),
     onSuccess: () => {
       setAviso(null);
       void qc.invalidateQueries({ queryKey: ['integracoes'] });
@@ -212,7 +218,9 @@ export default function IntegracoesPage() {
                   type="button"
                   onClick={() => {
                     setAviso(null);
-                    testar.mutate(i.id);
+                    const codigoTotp = pedirCodigoTotp();
+                    if (!codigoTotp) return;
+                    testar.mutate({ id: i.id, codigoTotp });
                   }}
                   disabled={testar.isPending}
                   className="underline opacity-70 hover:opacity-100 disabled:opacity-40"
@@ -238,7 +246,9 @@ export default function IntegracoesPage() {
                     `Desconectar "${i.nome}"? As vendas deixam de ser enviadas para o app. O histórico de envios é mantido.`,
                   )
                 ) {
-                  remover.mutate(i.id);
+                  const codigoTotp = pedirCodigoTotp();
+                  if (!codigoTotp) return;
+                  remover.mutate({ id: i.id, codigoTotp });
                 }
               }}
               disabled={remover.isPending}
@@ -421,7 +431,7 @@ function ModalIntegracao({
   const selecionados = eventos.length ? eventos : disponiveis;
 
   const salvar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api(
         editando ? `/painel/integracoes/${integracao!.id}` : '/painel/integracoes',
         {
@@ -433,6 +443,7 @@ function ModalIntegracao({
             eventos: selecionados,
             modoTeste,
             ativo,
+            codigoTotp,
             ...(credencial.trim() ? { credencial: credencial.trim() } : {}),
           }),
         },
@@ -452,7 +463,9 @@ function ModalIntegracao({
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErro(null);
-    salvar.mutate();
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
+    salvar.mutate(codigoTotp);
   }
 
   return (
@@ -643,10 +656,11 @@ function ModalEnvios({
   });
 
   const reenviar = useMutation({
-    mutationFn: (envioId: string) =>
-      api(`/painel/integracoes/${integracao.id}/envios/${envioId}/reenviar`, {
+    mutationFn: (p: { envioId: string; codigoTotp: string }) =>
+      api(`/painel/integracoes/${integracao.id}/envios/${p.envioId}/reenviar`, {
         token: token!,
         method: 'POST',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
       }),
     onSuccess: () =>
       void qc.invalidateQueries({ queryKey: ['integracao-envios', integracao.id] }),
@@ -678,8 +692,21 @@ function ModalEnvios({
       render: (e) => (
         <div className="flex flex-col gap-1">
           <BadgeSituacao situacao={e.situacao} />
+          {/*
+            Mensagem em envio que DEU CERTO não é erro: é o app avisando que
+            recebeu e descartou (duplicado). Pintar de vermelho ao lado de um
+            badge verde faria o lojista abrir chamado por um envio que não tem
+            o que consertar.
+          */}
           {e.mensagemErro && (
-            <span className="max-w-[18rem] text-[11px] text-red-600" title={e.mensagemErro}>
+            <span
+              className={`max-w-[18rem] text-[11px] ${
+                e.situacao === 'SUCESSO'
+                  ? 'text-amber-700 dark:text-amber-300'
+                  : 'text-red-600'
+              }`}
+              title={e.mensagemErro}
+            >
               {e.mensagemErro}
             </span>
           )}
@@ -694,7 +721,11 @@ function ModalEnvios({
         podeReenviar && e.situacao !== 'SUCESSO' ? (
           <button
             type="button"
-            onClick={() => reenviar.mutate(e.id)}
+            onClick={() => {
+              const codigoTotp = pedirCodigoTotp();
+              if (!codigoTotp) return;
+              reenviar.mutate({ envioId: e.id, codigoTotp });
+            }}
             disabled={reenviar.isPending}
             className="text-xs text-accent underline disabled:opacity-40"
           >

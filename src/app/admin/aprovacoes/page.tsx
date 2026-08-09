@@ -10,6 +10,7 @@ import { api, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type UsuarioAdmin = {
   idPublico: string;
@@ -99,17 +100,21 @@ export default function AprovacoesPage() {
     setErro(e instanceof Error ? e.message : 'Operação falhou');
 
   const ativarUsuario = useMutation({
-    mutationFn: (id: string) =>
-      api(`/admin/usuarios/${id}/ativar`, { token: token!, method: 'POST' }),
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api(`/admin/usuarios/${p.id}/ativar`, {
+        token: token!,
+        method: 'POST',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+      }),
     onSuccess: invalidate,
     onError: onErro,
   });
   const reprovarUsuario = useMutation({
-    mutationFn: (p: { id: string; motivo: string }) =>
+    mutationFn: (p: { id: string; motivo: string; codigoTotp: string }) =>
       api(`/admin/usuarios/${p.id}/reprovar`, {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ motivo: p.motivo }),
+        body: JSON.stringify({ motivo: p.motivo, codigoTotp: p.codigoTotp }),
       }),
     onSuccess: invalidate,
     onError: onErro,
@@ -223,10 +228,13 @@ export default function AprovacoesPage() {
                         const f = ev.target.files?.[0];
                         ev.target.value = '';
                         if (!f || !token) return;
+                        const codigoTotp = pedirCodigoTotp();
+                        if (!codigoTotp) return;
                         try {
                           const fd = new FormData();
                           fd.append('tipoDocumento', 'CONTRATO_PRESTACAO_SERVICO');
                           fd.append('arquivo', f);
+                          fd.append('codigoTotp', codigoTotp);
                           const res = await fetch(
                             `${API_URL}/admin/usuarios/${u.idPublico}/documentos`,
                             {
@@ -249,7 +257,13 @@ export default function AprovacoesPage() {
                     <div className="mt-3 flex gap-2">
                       <button
                         type="button"
-                        onClick={() => ativarUsuario.mutate(u.idPublico)}
+                        onClick={() => {
+                          const codigoTotp = pedirCodigoTotp(
+                            'Confirme a aprovação com o código 2FA da sua conta admin:',
+                          );
+                          if (!codigoTotp) return;
+                          ativarUsuario.mutate({ id: u.idPublico, codigoTotp });
+                        }}
                         className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white"
                       >
                         Aprovar usuário
@@ -258,7 +272,16 @@ export default function AprovacoesPage() {
                         type="button"
                         onClick={() => {
                           const motivo = window.prompt('Motivo da reprovação:');
-                          if (motivo) reprovarUsuario.mutate({ id: u.idPublico, motivo });
+                          if (!motivo) return;
+                          const codigoTotp = pedirCodigoTotp(
+                            'Confirme a reprovação com o código 2FA da sua conta admin:',
+                          );
+                          if (!codigoTotp) return;
+                          reprovarUsuario.mutate({
+                            id: u.idPublico,
+                            motivo,
+                            codigoTotp,
+                          });
                         }}
                         className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
                       >

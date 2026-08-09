@@ -1,0 +1,144 @@
+{
+  "info": {
+    "name": "VPay — API pública",
+    "description": "Coleção pronta para integrar com a API pública da VPay.\n\nCOMO USAR\n1. Importe este arquivo no Postman (File → Import).\n2. Abra a aba Variables da coleção e preencha `baseUrl`, `apiKey` e `apiSecret`.\n3. Rode PRIMEIRO a requisição \"Gerar token de acesso\": ela salva o `accessToken` na coleção e todas as outras o usam automaticamente (Authorization: Bearer).\n4. O token expira em 1 hora — recebeu 401 de token expirado, rode \"Gerar token de acesso\" de novo.\n\nAs credenciais são criadas no painel: Desenvolvedores → Chaves de API. Marque as permissões que a integração precisa — chave sem permissão responde 403 em tudo.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.vpay.com.br/api",
+      "description": "Origem da API + prefixo /api. Confirme o endereço no painel."
+    },
+    {
+      "key": "apiKey",
+      "value": "vp_sua_chave_publica",
+      "description": "Vai no header x-api-key — só na geração do token."
+    },
+    {
+      "key": "apiSecret",
+      "value": "seu_segredo",
+      "description": "Vai no header x-api-secret — só na geração do token. Exibido UMA vez na criação da chave."
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "description": "Preenchido automaticamente pela requisição \"Gerar token de acesso\"."
+    },
+    {
+      "key": "idTransacao",
+      "value": "",
+      "description": "Preenchido automaticamente pelos testes de criação."
+    }
+  ],
+  "item": [
+    {
+      "name": "Gerar token de acesso",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Salva o token para as demais requisições da coleção.",
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "  pm.collectionVariables.set('accessToken', pm.response.json().access_token);",
+              "}",
+              "pm.test('token emitido', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [
+          { "key": "x-api-key", "value": "{{apiKey}}" },
+          { "key": "x-api-secret", "value": "{{apiSecret}}" }
+        ],
+        "url": { "raw": "{{baseUrl}}/v1/auth/token", "host": ["{{baseUrl}}"], "path": ["v1", "auth", "token"] },
+        "description": "Troca o par x-api-key/x-api-secret por um token Bearer. RODE ESTA PRIMEIRO.\n\nO par de credenciais entra SOMENTE aqui — as rotas de negócio aceitam só o token.\n\nA resposta traz access_token, token_type, expires_in (segundos) e os escopos da credencial. O token vale por 1 hora: reutilize-o até expirar em vez de emitir um por chamada (a emissão tem teto próprio de tentativas).\n\nRevogar a credencial no painel derruba os tokens dela imediatamente, mesmo dentro da validade."
+      }
+    },
+    {
+      "name": "Cash-in — criar cobrança PIX",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Guarda o idTransacao para a requisição de consulta.",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('idTransacao', pm.response.json().idTransacao);",
+              "}",
+              "pm.test('cobranca criada', () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/v1/pix/cobrancas", "host": ["{{baseUrl}}"], "path": ["v1", "pix", "cobrancas"] },
+        "description": "Exige a permissão `pix.cobranca.criar`.\n\nAutenticação: Bearer herdado da coleção — rode \"Gerar token de acesso\" antes.\n\nOBRIGATÓRIOS: valor, pagador (nome, documento, email) e itens.\nO documento aceita CPF (11 dígitos) ou CNPJ (14 posições, inclusive alfanumérico), com ou sem máscara — identificamos o tipo pelo tamanho.\npagador.endereco vira obrigatório se algum item tiver tangivel: true.\n\nIDEMPOTÊNCIA: a referenciaExterna é o id do pedido do SEU sistema. Repetir a mesma referência com os mesmos dados devolve a MESMA cobrança (retentativa segura); com qualquer dado diferente, uma cobrança NOVA é gerada — cobrança nunca responde 409 pela referência.",
+        "body": {
+          "mode": "raw",
+          "options": { "raw": { "language": "json" } },
+          "raw": "{\n  \"valor\": \"150.00\",\n  \"referenciaExterna\": \"pedido-{{$timestamp}}\",\n  \"pagador\": {\n    \"nome\": \"Fulano de Tal\",\n    \"documento\": \"12345678909\",\n    \"email\": \"fulano@email.com\",\n    \"telefone\": \"11999998888\",\n    \"endereco\": {\n      \"cep\": \"01001000\",\n      \"logradouro\": \"Praça da Sé\",\n      \"numero\": \"10\",\n      \"complemento\": \"sala 2\",\n      \"bairro\": \"Sé\",\n      \"cidade\": \"São Paulo\",\n      \"uf\": \"SP\"\n    }\n  },\n  \"itens\": [\n    { \"titulo\": \"Camiseta\", \"quantidade\": 2, \"valorUnitario\": 65.00, \"tangivel\": true },\n    { \"titulo\": \"Frete\", \"quantidade\": 1, \"valorUnitario\": 20.00, \"tangivel\": false }\n  ],\n  \"rastreio\": {\n    \"utm_source\": \"facebook\",\n    \"utm_campaign\": \"black-friday\",\n    \"utm_medium\": \"cpc\"\n  },\n  \"urlCallback\": \"https://seusite.com/webhooks/vpay\",\n  \"expiracaoSegundos\": 86400\n}"
+        }
+      }
+    },
+    {
+      "name": "Cash-in — cobrança para pagador PJ (CNPJ)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/v1/pix/cobrancas", "host": ["{{baseUrl}}"], "path": ["v1", "pix", "cobrancas"] },
+        "description": "Mesma rota: o que muda é só o documento do pagador. 14 posições = CNPJ. O formato alfanumérico da Receita também é aceito (ex.: 12ABC34501DE35).",
+        "body": {
+          "mode": "raw",
+          "options": { "raw": { "language": "json" } },
+          "raw": "{\n  \"valor\": \"1200.00\",\n  \"referenciaExterna\": \"pedido-pj-{{$timestamp}}\",\n  \"pagador\": {\n    \"nome\": \"Empresa Compradora LTDA\",\n    \"documento\": \"11.222.333/0001-81\",\n    \"email\": \"financeiro@empresa.com.br\"\n  },\n  \"itens\": [\n    { \"titulo\": \"Licença anual\", \"quantidade\": 1, \"valorUnitario\": 1200.00, \"tangivel\": false }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "Cash-out — criar saque PIX",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": { "raw": "{{baseUrl}}/v1/pix/saques", "host": ["{{baseUrl}}"], "path": ["v1", "pix", "saques"] },
+        "description": "Exige a permissão `pix.saque.criar` E a lista de IPs permitidos preenchida na chave.\n\nO documentoBeneficiario tem que ser o do DONO da chave — a liquidante confere no DICT. Com tipoChavePix CPF ou CNPJ, o documento precisa ser igual à própria chave.\n\nA resposta vem com situação PROCESSANDO: nesse momento o valor JÁ saiu do seu saldo.\n\nIDEMPOTÊNCIA: repetir a mesma referenciaExterna com os mesmos dados devolve o MESMO saque, sem debitar de novo; com qualquer dado diferente, 409.",
+        "body": {
+          "mode": "raw",
+          "options": { "raw": { "language": "json" } },
+          "raw": "{\n  \"valor\": \"80.00\",\n  \"chavePix\": \"12345678909\",\n  \"tipoChavePix\": \"CPF\",\n  \"nomeBeneficiario\": \"Bruno de Tal\",\n  \"documentoBeneficiario\": \"12345678909\",\n  \"referenciaExterna\": \"saque-{{$timestamp}}\",\n  \"urlCallback\": \"https://seusite.com/webhooks/vpay\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Consultar transação",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/v1/pix/transacoes/{{idTransacao}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["v1", "pix", "transacoes", "{{idTransacao}}"]
+        },
+        "description": "Exige a permissão `transacoes.ler`.\n\nUse o idTransacao que devolvemos na criação (não a sua referenciaExterna). Rede de segurança da conciliação — não substitui o webhook para liberar pedido."
+      }
+    }
+  ]
+}

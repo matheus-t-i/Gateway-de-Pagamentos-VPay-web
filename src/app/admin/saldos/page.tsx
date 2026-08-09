@@ -17,6 +17,7 @@ import { Gatilho, GatilhoModal } from '@/components/gatilho-modal';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 const brl = (v: string | number | null) =>
   v == null
@@ -182,8 +183,12 @@ export default function SaldosPage() {
   });
 
   const atualizar = useMutation({
-    mutationFn: () =>
-      api('/admin/tesouraria/saldos/atualizar', { token: token!, method: 'POST' }),
+    mutationFn: (codigoTotp: string) =>
+      api('/admin/tesouraria/saldos/atualizar', {
+        token: token!,
+        method: 'POST',
+        body: JSON.stringify({ codigoTotp }),
+      }),
     onSuccess: () => {
       setAviso({ tipo: 'ok', texto: 'Saldos atualizados na adquirente.' });
       void qc.invalidateQueries({ queryKey: ['tesouraria-saldos'] });
@@ -193,10 +198,11 @@ export default function SaldosPage() {
   });
 
   const executar = useMutation({
-    mutationFn: (id: string) =>
-      api<{ valorSolicitado: string }>(`/admin/tesouraria/gatilhos/${id}/executar`, {
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api<{ valorSolicitado: string }>(`/admin/tesouraria/gatilhos/${p.id}/executar`, {
         token: token!,
         method: 'POST',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
       }),
     onSuccess: (r) => {
       setAviso({ tipo: 'ok', texto: `Saque de ${brl(r.valorSolicitado)} enviado à fila.` });
@@ -263,7 +269,11 @@ export default function SaldosPage() {
               type="button"
               disabled={!g.ativo || executar.isPending}
               className="text-xs text-accent underline disabled:opacity-40 disabled:no-underline"
-              onClick={() => executar.mutate(g.id)}
+              onClick={() => {
+                const codigoTotp = pedirCodigoTotp();
+                if (!codigoTotp) return;
+                executar.mutate({ id: g.id, codigoTotp });
+              }}
             >
               Executar agora
             </button>
@@ -330,7 +340,11 @@ export default function SaldosPage() {
         {podeExecutar && (
           <button
             type="button"
-            onClick={() => atualizar.mutate()}
+            onClick={() => {
+              const codigoTotp = pedirCodigoTotp();
+              if (!codigoTotp) return;
+              atualizar.mutate(codigoTotp);
+            }}
             disabled={atualizar.isPending}
             className="rounded-md border border-ink-800/15 px-4 py-2 text-sm font-medium transition hover:bg-ink-800/5 disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/5"
           >

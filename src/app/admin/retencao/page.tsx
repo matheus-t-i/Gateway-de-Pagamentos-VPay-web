@@ -8,6 +8,7 @@ import { ModalAcoes } from '@/components/modal';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type ContaPerc = {
   id: string;
@@ -90,7 +91,7 @@ export default function RetencaoPage() {
   }, [cfg.data]);
 
   const salvar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api<ConfigRetencao>('/admin/retencao', {
         token: token!,
         method: 'PUT',
@@ -110,6 +111,7 @@ export default function RetencaoPage() {
                 raw === '' ? null : Number(raw.replace(',', '.')),
             };
           }),
+          codigoTotp,
         }),
       }),
     onSuccess: () => {
@@ -125,7 +127,9 @@ export default function RetencaoPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    salvar.mutate();
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
+    salvar.mutate(codigoTotp);
   };
 
   const estado = cfg.data?.estado;

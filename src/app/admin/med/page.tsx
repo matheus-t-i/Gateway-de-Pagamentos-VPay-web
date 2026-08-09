@@ -7,6 +7,7 @@ import { BarraFiltros, FiltroTexto, Paginacao, SeletorPorPagina } from '@/compon
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type CasoMed = {
   idPublico: string;
@@ -153,11 +154,20 @@ export default function MedPage() {
   });
 
   const decidir = useMutation({
-    mutationFn: (p: { id: string; decisao: 'ACEITO' | 'RECUSADO'; motivo?: string }) =>
+    mutationFn: (p: {
+      id: string;
+      decisao: 'ACEITO' | 'RECUSADO';
+      motivo?: string;
+      codigoTotp: string;
+    }) =>
       api(`/admin/med/${p.id}/decidir`, {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ decisao: p.decisao, motivo: p.motivo }),
+        body: JSON.stringify({
+          decisao: p.decisao,
+          motivo: p.motivo,
+          codigoTotp: p.codigoTotp,
+        }),
       }),
     onSuccess: () => {
       setErro(null);
@@ -297,10 +307,13 @@ export default function MedPage() {
                           'Aceitar a contestação devolve o valor ao pagador. Motivo (opcional):',
                         );
                         if (motivo === null) return;
+                        const codigoTotp = pedirCodigoTotp();
+                        if (!codigoTotp) return;
                         decidir.mutate({
                           id: c.idPublico,
                           decisao: 'ACEITO',
                           motivo: motivo.trim() || undefined,
+                          codigoTotp,
                         });
                       }}
                       className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
@@ -315,10 +328,13 @@ export default function MedPage() {
                           'Recusar mantém o valor com o lojista. Informe o motivo:',
                         );
                         if (!motivo?.trim()) return;
+                        const codigoTotp = pedirCodigoTotp();
+                        if (!codigoTotp) return;
                         decidir.mutate({
                           id: c.idPublico,
                           decisao: 'RECUSADO',
                           motivo: motivo.trim(),
+                          codigoTotp,
                         });
                       }}
                       className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"

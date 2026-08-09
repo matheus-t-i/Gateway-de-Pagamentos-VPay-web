@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { CATALOGO_ESCOPOS } from '@/lib/escopos';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
 
@@ -107,11 +109,11 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
   const [copiado, setCopiado] = useState(false);
 
   const criar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api<CobrancaResp>('/painel/transacoes/cobrancas', {
         token,
         method: 'POST',
-        body: JSON.stringify({ valor }),
+        body: JSON.stringify({ valor, codigoTotp }),
       }),
     onSuccess: (r) => {
       setResp(r);
@@ -135,7 +137,11 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            criar.mutate();
+            const codigoTotp = pedirCodigoTotp(
+              'Confirme o depósito com o código 2FA (6 dígitos):',
+            );
+            if (!codigoTotp) return;
+            criar.mutate(codigoTotp);
           }}
           className="space-y-4"
         >
@@ -212,11 +218,11 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
   );
 
   const sacar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api('/painel/transacoes/saques', {
         token,
         method: 'POST',
-        body: JSON.stringify({ valor, chavePixIdPublico: chaveSel }),
+        body: JSON.stringify({ valor, chavePixIdPublico: chaveSel, codigoTotp }),
       }),
     onSuccess: () => {
       setOkMsg('Saque solicitado com sucesso.');
@@ -231,7 +237,7 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
   });
 
   const registrar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api('/painel/chaves-pix', {
         token,
         method: 'POST',
@@ -240,6 +246,7 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
           chave,
           tipoChave,
           nomeTitular: nomeTitular || undefined,
+          codigoTotp,
         }),
       }),
     onSuccess: () => {
@@ -276,7 +283,11 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                sacar.mutate();
+                const codigoTotp = pedirCodigoTotp(
+                  'Confirme o saque com o código 2FA (6 dígitos):',
+                );
+                if (!codigoTotp) return;
+                sacar.mutate(codigoTotp);
               }}
               className="space-y-3"
             >
@@ -349,7 +360,11 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                registrar.mutate();
+                const codigoTotp = pedirCodigoTotp(
+                  'Confirme o cadastro da chave PIX com o código 2FA (6 dígitos):',
+                );
+                if (!codigoTotp) return;
+                registrar.mutate(codigoTotp);
               }}
               className="space-y-3 rounded-md border border-ink-800/10 p-3 dark:border-white/10"
             >
@@ -410,22 +425,24 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
 function CredencialModal({ open, onClose, token }: ModalProps) {
   const [nome, setNome] = useState('');
   const [ips, setIps] = useState('');
+  const [escopos, setEscopos] = useState<string[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [criada, setCriada] = useState<NovaCredencial | null>(null);
   const [copiado, setCopiado] = useState(false);
 
   const criar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api<NovaCredencial>('/painel/credenciais', {
         token,
         method: 'POST',
         body: JSON.stringify({
           nome,
-          escopos: [],
+          escopos,
           ipsPermitidos: ips
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
+          codigoTotp,
         }),
       }),
     onSuccess: (r) => {
@@ -450,7 +467,9 @@ function CredencialModal({ open, onClose, token }: ModalProps) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            criar.mutate();
+            const codigoTotp = pedirCodigoTotp();
+            if (!codigoTotp) return;
+            criar.mutate(codigoTotp);
           }}
           className="space-y-4"
         >
@@ -473,8 +492,43 @@ function CredencialModal({ open, onClose, token }: ModalProps) {
               placeholder="203.0.113.10, 198.51.100.0/24"
             />
           </label>
+
+          {/* Sem escopo a chave responde 403 em toda rota da API pública. */}
+          <div>
+            <p className="text-sm">
+              <TextoRotulo obrigatorio>Permissões desta chave</TextoRotulo>
+            </p>
+            <div className="mt-2 space-y-2">
+              {CATALOGO_ESCOPOS.map((esc) => (
+                <label key={esc.codigo} className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={escopos.includes(esc.codigo)}
+                    onChange={(e) =>
+                      setEscopos(
+                        e.target.checked
+                          ? [...escopos, esc.codigo]
+                          : escopos.filter((c) => c !== esc.codigo),
+                      )
+                    }
+                  />
+                  <span>
+                    {esc.rotulo}
+                    <span className="block text-xs opacity-60">{esc.descricao}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           {erro && <p className="text-sm text-red-600">{erro}</p>}
-          <ModalAcoes onCancelar={fechar} rotulo="Criar credencial" pendente={criar.isPending} />
+          <ModalAcoes
+            onCancelar={fechar}
+            rotulo="Criar credencial"
+            pendente={criar.isPending}
+            desabilitado={!escopos.length}
+          />
         </form>
       ) : (
         <div className="space-y-3">
@@ -490,6 +544,10 @@ function CredencialModal({ open, onClose, token }: ModalProps) {
                 <span className="opacity-60">x-api-secret:</span> {criada.segredo}
               </p>
             </div>
+            <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
+              O par gera o token de acesso em <code>POST /v1/auth/token</code>; as demais
+              rotas usam o token (<code>Authorization: Bearer</code>).
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button

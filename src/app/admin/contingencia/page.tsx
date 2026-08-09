@@ -17,6 +17,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Conta = {
   id: string;
@@ -157,11 +158,14 @@ function EditorCadeia({
   };
 
   const salvar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api('/admin/contingencia', {
         token,
         method: 'PUT',
-        body: JSON.stringify({ contas: ordem.map((id) => ({ contaProvedorId: id })) }),
+        body: JSON.stringify({
+          contas: ordem.map((id) => ({ contaProvedorId: id })),
+          codigoTotp,
+        }),
       }),
     onSuccess: () => {
       setErro(null);
@@ -294,7 +298,11 @@ function EditorCadeia({
             </button>
             <button
               type="button"
-              onClick={() => salvar.mutate()}
+              onClick={() => {
+                const codigoTotp = pedirCodigoTotp();
+                if (!codigoTotp) return;
+                salvar.mutate(codigoTotp);
+              }}
               disabled={salvar.isPending}
               className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
             >

@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Carteira = {
   idPublico: string;
@@ -234,22 +235,39 @@ export default function CarteirasPage() {
     setErro(e instanceof Error ? e.message : 'Operação falhou');
 
   const criarBloqueio = useMutation({
-    mutationFn: (p: { idPublico: string; valor: string; motivo: string }) =>
+    mutationFn: (p: {
+      idPublico: string;
+      valor: string;
+      motivo: string;
+      codigoTotp: string;
+    }) =>
       api(`/admin/carteiras/${p.idPublico}/bloqueios`, {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ valor: p.valor, motivo: p.motivo }),
+        body: JSON.stringify({
+          valor: p.valor,
+          motivo: p.motivo,
+          codigoTotp: p.codigoTotp,
+        }),
       }),
     onSuccess: aposMutacao,
     onError: aoFalhar,
   });
 
   const decidirBloqueio = useMutation({
-    mutationFn: (p: { idPublico: string; acao: 'liberar' | 'debitar'; motivo: string }) =>
+    mutationFn: (p: {
+      idPublico: string;
+      acao: 'liberar' | 'debitar';
+      motivo: string;
+      codigoTotp: string;
+    }) =>
       api(`/admin/carteiras/bloqueios/${p.idPublico}/${p.acao}`, {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ motivo: p.motivo || undefined }),
+        body: JSON.stringify({
+          motivo: p.motivo || undefined,
+          codigoTotp: p.codigoTotp,
+        }),
       }),
     onSuccess: aposMutacao,
     onError: aoFalhar,
@@ -716,10 +734,13 @@ export default function CarteirasPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const codigoTotp = pedirCodigoTotp();
+              if (!codigoTotp) return;
               criarBloqueio.mutate({
                 idPublico: bloquear.idPublico,
                 valor,
                 motivo,
+                codigoTotp,
               });
             }}
             className="space-y-4"
@@ -783,10 +804,13 @@ export default function CarteirasPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const codigoTotp = pedirCodigoTotp();
+              if (!codigoTotp) return;
               decidirBloqueio.mutate({
                 idPublico: decidir.bloqueio.idPublico,
                 acao: decidir.acao,
                 motivo: motivoDecisao,
+                codigoTotp,
               });
             }}
             className="space-y-4"

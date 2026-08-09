@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, X } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { api } from '@/lib/api';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type UsuarioGestao = {
   idPublico: string;
@@ -64,14 +65,18 @@ export function MembrosPerfil({
   }, [q.data, perfil.nome]);
 
   const alterar = useMutation({
-    mutationFn: (v: { usuario: UsuarioGestao; incluir: boolean }) => {
+    mutationFn: (v: {
+      usuario: UsuarioGestao;
+      incluir: boolean;
+      codigoTotp: string;
+    }) => {
       const perfis = v.incluir
         ? [...v.usuario.papeis, perfil.nome]
         : v.usuario.papeis.filter((p) => p !== perfil.nome);
       return api(`/admin/usuarios/${v.usuario.idPublico}/perfis`, {
         token,
         method: 'PUT',
-        body: JSON.stringify({ perfis }),
+        body: JSON.stringify({ perfis, codigoTotp: v.codigoTotp }),
       });
     },
     onSuccess: () => {
@@ -135,7 +140,11 @@ export function MembrosPerfil({
                         type="button"
                         aria-label={`Remover ${u.nome} do perfil`}
                         disabled={alterar.isPending}
-                        onClick={() => alterar.mutate({ usuario: u, incluir: false })}
+                        onClick={() => {
+                          const codigoTotp = pedirCodigoTotp();
+                          if (!codigoTotp) return;
+                          alterar.mutate({ usuario: u, incluir: false, codigoTotp });
+                        }}
                         className="shrink-0 rounded-full p-1 text-red-600 opacity-70 transition hover:bg-red-500/10 hover:opacity-100 disabled:opacity-30 dark:text-red-400"
                       >
                         <X className="h-4 w-4" strokeWidth={2.5} aria-hidden />
@@ -173,7 +182,11 @@ export function MembrosPerfil({
                         type="button"
                         aria-label={`Adicionar ${u.nome} ao perfil`}
                         disabled={alterar.isPending}
-                        onClick={() => alterar.mutate({ usuario: u, incluir: true })}
+                        onClick={() => {
+                          const codigoTotp = pedirCodigoTotp();
+                          if (!codigoTotp) return;
+                          alterar.mutate({ usuario: u, incluir: true, codigoTotp });
+                        }}
                         className="shrink-0 rounded-full p-1 opacity-70 transition hover:bg-accent/20 hover:opacity-100 disabled:opacity-30"
                       >
                         <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />

@@ -15,7 +15,9 @@ import {
 } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { CATALOGO_ESCOPOS } from '@/lib/escopos';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Credencial = {
   id: string;
@@ -25,6 +27,8 @@ type Credencial = {
   ativo: boolean;
   ipsPermitidos: string[];
   criadoEm: string;
+  /** Rotação em andamento: até esta data o segredo ANTIGO também é aceito. */
+  segredoAnteriorAtivoAte: string | null;
 };
 
 type NovaCredencial = {
@@ -33,6 +37,8 @@ type NovaCredencial = {
   chavePublica: string;
   segredo: string;
   aviso: string;
+  /** Presente quando veio de uma rotação, não de uma criação. */
+  segredoAnteriorAtivoAte?: string | null;
 };
 
 const inputCls =
@@ -62,11 +68,11 @@ function ModalEditar({
   const [erro, setErro] = useState<string | null>(null);
 
   const salvar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api<Credencial>(`/painel/credenciais/${credencial.id}`, {
         token,
         method: 'PUT',
-        body: JSON.stringify({ nome, ipsPermitidos: ips }),
+        body: JSON.stringify({ nome, ipsPermitidos: ips, codigoTotp }),
       }),
     onSuccess: () => {
       onSalvo();
@@ -93,7 +99,9 @@ function ModalEditar({
         onSubmit={(e) => {
           e.preventDefault();
           setErro(null);
-          salvar.mutate();
+          const codigoTotp = pedirCodigoTotp();
+          if (!codigoTotp) return;
+          salvar.mutate(codigoTotp);
         }}
         className="space-y-4"
       >
@@ -187,6 +195,7 @@ export default function ChavesApiPage() {
   const qc = useQueryClient();
   const [nome, setNome] = useState('');
   const [ips, setIps] = useState('');
+  const [escopos, setEscopos] = useState<string[]>([]);
   const [criada, setCriada] = useState<NovaCredencial | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
@@ -200,39 +209,83 @@ export default function ChavesApiPage() {
   });
 
   const criar = useMutation({
-    mutationFn: (body: { nome: string; ipsPermitidos: string[] }) =>
+    mutationFn: (body: {
+      nome: string;
+      ipsPermitidos: string[];
+      escopos: string[];
+      codigoTotp: string;
+    }) =>
       api<NovaCredencial>('/painel/credenciais', {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ ...body, escopos: [] }),
+        body: JSON.stringify(body),
       }),
     onSuccess: (nova) => {
       setCriada(nova);
       setNome('');
       setIps('');
+      setEscopos([]);
       setErro(null);
       void qc.invalidateQueries({ queryKey: ['credenciais'] });
     },
     onError: (e) => setErro(e instanceof Error ? e.message : 'Falha ao criar'),
   });
 
-  const revogar = useMutation({
-    mutationFn: (id: string) =>
-      api(`/painel/credenciais/${id}`, {
+  const rotacionar = useMutation({
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api<NovaCredencial>(`/painel/credenciais/${p.id}/rotacionar`, {
+        token: token!,
+        method: 'POST',
+        body: JSON.stringify({ diasJanela: 7, codigoTotp: p.codigoTotp }),
+      }),
+    onSuccess: (nova) => {
+      // Mesma caixa do segredo recém-criado: é a única vez que ele aparece.
+      setCriada(nova);
+      void qc.invalidateQueries({ queryKey: ['credenciais'] });
+    },
+    onError: (e) => setErro(e instanceof Error ? e.message : 'Falha ao rotacionar'),
+  });
+
+  const encerrarJanela = useMutation({
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api(`/painel/credenciais/${p.id}/segredo-anterior`, {
         token: token!,
         method: 'DELETE',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['credenciais'] }),
+    onError: (e) => setErro(e instanceof Error ? e.message : 'Falha ao encerrar a janela'),
+  });
+
+  const revogar = useMutation({
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api(`/painel/credenciais/${p.id}`, {
+        token: token!,
+        method: 'DELETE',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
       }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['credenciais'] }),
   });
 
   function onCriar(e: FormEvent) {
     e.preventDefault();
+    // Sem escopo a chave não abre NENHUMA rota da API (403 em tudo). Barrar
+    // aqui evita emitir um par de credenciais que nasce inútil e não pode ser
+    // consertado depois — escopo não é editável.
+    if (!escopos.length) {
+      setErro('Marque ao menos uma permissão: sem escopo a chave não acessa nada.');
+      return;
+    }
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
     criar.mutate({
       nome,
+      escopos,
       ipsPermitidos: ips
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
+      codigoTotp,
     });
   }
 
@@ -257,6 +310,22 @@ export default function ChavesApiPage() {
       titulo: 'Chave pública',
       className: 'font-mono text-xs',
       render: (c) => c.chavePublica,
+    },
+    {
+      // Chave sem escopo responde 403 em toda rota — precisa gritar na lista,
+      // não ficar escondida atrás de um "por que minha integração não funciona".
+      chave: 'escopos',
+      titulo: 'Permissões',
+      render: (c) =>
+        c.escopos?.length ? (
+          <span className="font-mono text-[11px] opacity-70">
+            {c.escopos.join(' · ')}
+          </span>
+        ) : (
+          <span className="inline-flex rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-500/20 dark:text-red-300">
+            sem permissão — não acessa nada
+          </span>
+        ),
     },
     {
       chave: 'ips',
@@ -298,20 +367,73 @@ export default function ChavesApiPage() {
       className: 'text-right',
       render: (c) =>
         c.ativo ? (
-          <span className="flex justify-end gap-3">
+          <span className="flex flex-wrap justify-end gap-3">
             {podeEditar && (
-              <button
-                type="button"
-                onClick={() => setEditando(c)}
-                className="text-xs underline"
-              >
-                Editar
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditando(c)}
+                  className="text-xs underline"
+                >
+                  Editar
+                </button>
+                {/*
+                  Rotacionar gera um segredo novo mantendo o antigo válido por
+                  uma janela — é o que permite trocar a chave em produção sem
+                  derrubar as vendas enquanto a frota atualiza.
+                */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Gerar um novo segredo para "${c.nome}"?\n\n` +
+                          'O segredo atual continua válido por 7 dias, para você atualizar ' +
+                          'suas aplicações sem parar de vender. A chave pública não muda.',
+                      )
+                    ) {
+                      setErro(null);
+                      const codigoTotp = pedirCodigoTotp();
+                      if (!codigoTotp) return;
+                      rotacionar.mutate({ id: c.id, codigoTotp });
+                    }
+                  }}
+                  disabled={rotacionar.isPending}
+                  className="text-xs underline disabled:opacity-40"
+                >
+                  Rotacionar segredo
+                </button>
+                {c.segredoAnteriorAtivoAte && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          'Encerrar a janela agora? O segredo anterior para de funcionar ' +
+                            'imediatamente — só faça isso depois de atualizar todas as suas aplicações.',
+                        )
+                      ) {
+                        const codigoTotp = pedirCodigoTotp();
+                        if (!codigoTotp) return;
+                        encerrarJanela.mutate({ id: c.id, codigoTotp });
+                      }
+                    }}
+                    disabled={encerrarJanela.isPending}
+                    className="text-xs text-amber-700 underline disabled:opacity-40 dark:text-amber-300"
+                  >
+                    Encerrar janela
+                  </button>
+                )}
+              </>
             )}
             {podeRevogar && (
               <button
                 type="button"
-                onClick={() => revogar.mutate(c.id)}
+                onClick={() => {
+                  const codigoTotp = pedirCodigoTotp();
+                  if (!codigoTotp) return;
+                  revogar.mutate({ id: c.id, codigoTotp });
+                }}
                 className="text-xs text-red-600 underline"
               >
                 Revogar
@@ -344,6 +466,23 @@ export default function ChavesApiPage() {
                   <span className="opacity-60">x-api-secret:</span> {criada.segredo}
                 </p>
               </div>
+              <p className="mt-2 text-xs text-amber-800 dark:text-amber-300">
+                O par gera o token de acesso em <code>POST /v1/auth/token</code>; as
+                demais rotas usam o token (<code>Authorization: Bearer</code>) — veja a{' '}
+                <a className="underline" href="/desenvolvedores/documentacao#autenticacao">
+                  documentação
+                </a>
+                .
+              </p>
+              {/* Só aparece quando veio de uma rotação: explica a janela. */}
+              {criada.segredoAnteriorAtivoAte && (
+                <p className="mt-3 text-xs text-amber-800 dark:text-amber-300">
+                  O segredo anterior <strong>continua funcionando</strong> até{' '}
+                  {new Date(criada.segredoAnteriorAtivoAte).toLocaleString('pt-BR')}.
+                  Atualize suas aplicações e depois use{' '}
+                  <strong>Encerrar janela</strong> para desativá-lo na hora.
+                </p>
+              )}
               <button
                 type="button"
                 className="mt-3 rounded bg-amber-600 px-3 py-1.5 text-xs font-medium text-white"
@@ -381,6 +520,43 @@ export default function ChavesApiPage() {
                 />
               </label>
             </div>
+
+            {/*
+              Escopo é o que a chave PODE fazer, e não é editável depois: uma
+              chave emitida sem escopo responde 403 em toda rota e só resta
+              revogar e criar outra.
+            */}
+            <p className="mt-4 text-xs font-medium opacity-60">
+              <TextoRotulo obrigatorio>Permissões desta chave</TextoRotulo>
+            </p>
+            <div className="mt-2 space-y-2">
+              {CATALOGO_ESCOPOS.map((esc) => (
+                <label key={esc.codigo} className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={escopos.includes(esc.codigo)}
+                    onChange={(e) =>
+                      setEscopos(
+                        e.target.checked
+                          ? [...escopos, esc.codigo]
+                          : escopos.filter((c) => c !== esc.codigo),
+                      )
+                    }
+                  />
+                  <span>
+                    {esc.rotulo}{' '}
+                    <code className="font-mono text-xs opacity-60">{esc.codigo}</code>
+                    <span className="block text-xs opacity-60">{esc.descricao}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs opacity-60">
+              Marque só o que a integração precisa. As permissões não podem ser
+              alteradas depois — para mudar, emita outra chave e revogue esta.
+            </p>
+
             {erro && <p className="mt-2 text-sm text-red-600">{erro}</p>}
             <button
               type="submit"

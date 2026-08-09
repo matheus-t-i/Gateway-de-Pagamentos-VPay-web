@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
 
@@ -286,6 +287,12 @@ export function EditarAdquirenteModal({
   const salvar = useMutation({
     mutationFn: async () => {
       const subs = precisaSubstituir ? substituicoes : undefined;
+      const mudaSituacao = situacao !== det.data?.situacao;
+      // Um código para todas as mutações deste save (vitrine, edição, situação, IPs, custo).
+      const codigoTotp = pedirCodigoTotp();
+      if (!codigoTotp) {
+        throw new Error('Código 2FA obrigatório para salvar a adquirente.');
+      }
       // Vitrine primeiro: é ela que fecha o acesso e remaneja quem ficaria órfão.
       await api(`/admin/adquirentes/${codigo}/vitrine`, {
         token,
@@ -296,6 +303,7 @@ export function EditarAdquirenteModal({
           observacaoCliente: observacao || undefined,
           disponibilidadePixEntrada: disponibilidade,
           substituicoes: subs,
+          codigoTotp,
         }),
       });
       await api(`/admin/adquirentes/${codigo}`, {
@@ -306,25 +314,30 @@ export function EditarAdquirenteModal({
           permitePixEntrada: entrada,
           permitePixSaida: saida,
           substituicoes: subs,
+          codigoTotp,
         }),
       });
-      if (situacao !== det.data?.situacao) {
+      if (mudaSituacao) {
         await api(`/admin/provedores/${codigo}/situacao`, {
           token,
           method: 'PUT',
-          body: JSON.stringify({ situacao, substituicoes: subs }),
+          body: JSON.stringify({
+            situacao,
+            substituicoes: subs,
+            codigoTotp,
+          }),
         });
       }
       await api(`/admin/adquirentes/${codigo}/ips-webhook`, {
         token,
         method: 'PUT',
-        body: JSON.stringify({ ips: ipsWebhook }),
+        body: JSON.stringify({ ips: ipsWebhook, codigoTotp }),
       });
       for (const c of contas) {
         await api(`/admin/adquirentes/contas/${c.id}/custo`, {
           token,
           method: 'PUT',
-          body: JSON.stringify(c.custo),
+          body: JSON.stringify({ ...c.custo, codigoTotp }),
         });
       }
     },
@@ -518,11 +531,11 @@ export function ClientesAdquirenteModal({
   });
 
   const liberar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api(`/admin/adquirentes/${codigo}/clientes`, {
         token,
         method: 'POST',
-        body: JSON.stringify({ usuarioIdPublico: novo.trim() }),
+        body: JSON.stringify({ usuarioIdPublico: novo.trim(), codigoTotp }),
       }),
     onSuccess: () => {
       setNovo('');
@@ -533,11 +546,15 @@ export function ClientesAdquirenteModal({
   });
 
   const revogar = useMutation({
-    mutationFn: (p: { idPublico: string; substituta?: string }) =>
+    mutationFn: (p: { idPublico: string; substituta?: string; codigoTotp: string }) =>
       api(
         `/admin/adquirentes/${codigo}/clientes/${p.idPublico}` +
           (p.substituta ? `?adquirenteSubstituta=${encodeURIComponent(p.substituta)}` : ''),
-        { token, method: 'DELETE' },
+        {
+          token,
+          method: 'DELETE',
+          body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+        },
       ),
     onSuccess: () => {
       setErro(null);
@@ -574,7 +591,9 @@ export function ClientesAdquirenteModal({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            liberar.mutate();
+            const codigoTotp = pedirCodigoTotp();
+            if (!codigoTotp) return;
+            liberar.mutate(codigoTotp);
           }}
           className="flex items-end gap-2"
         >
@@ -617,9 +636,12 @@ export function ClientesAdquirenteModal({
                       'Se este cliente estiver usando esta adquirente no PIX in, ' +
                         'informe o código da adquirente substituta (deixe vazio se não estiver):',
                     ) ?? '';
+                  const codigoTotp = pedirCodigoTotp();
+                  if (!codigoTotp) return;
                   revogar.mutate({
                     idPublico: c.idPublico,
                     substituta: substituta.trim() || undefined,
+                    codigoTotp,
                   });
                 }}
                 className="rounded-md border border-red-500/40 px-3 py-1 text-xs font-medium text-red-600"
@@ -654,7 +676,7 @@ export function NovaAdquirenteModal({
   const [ipsWebhook, setIpsWebhook] = useState<string[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const criar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api('/admin/adquirentes', {
         token,
         method: 'POST',
@@ -664,6 +686,7 @@ export function NovaAdquirenteModal({
           permitePixEntrada: entrada,
           permitePixSaida: saida,
           ipsWebhook,
+          codigoTotp,
         }),
       }),
     onSuccess: () => {
@@ -681,7 +704,9 @@ export function NovaAdquirenteModal({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          criar.mutate();
+          const codigoTotp = pedirCodigoTotp();
+          if (!codigoTotp) return;
+          criar.mutate(codigoTotp);
         }}
         className="space-y-4"
       >

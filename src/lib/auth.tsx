@@ -12,6 +12,7 @@ import { useTheme } from 'next-themes';
 import { api } from './api';
 import { limparCredsOnboarding } from './onboarding';
 import type { CodigoPermissao } from './permissoes';
+import { pedirCodigoTotp } from './step-up-totp';
 
 type Usuario = {
   idPublico: string;
@@ -188,12 +189,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const patchTema = useCallback(
     async (tema: Usuario['temaPreferido']) => {
       if (!token) return;
+      const codigoTotp = pedirCodigoTotp();
+      if (!codigoTotp) return;
       const updated = await api<{ temaPreferido: Usuario['temaPreferido'] }>(
         '/auth/me',
         {
           method: 'PATCH',
           token,
-          body: JSON.stringify({ temaPreferido: tema }),
+          body: JSON.stringify({ temaPreferido: tema, codigoTotp }),
         },
       );
       setUsuario((u) => (u ? { ...u, temaPreferido: updated.temaPreferido } : u));

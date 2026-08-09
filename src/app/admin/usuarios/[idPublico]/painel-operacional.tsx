@@ -32,6 +32,7 @@ import {
   prazoEmMeses,
 } from '@/lib/config-comercial';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 export const campo =
   'mt-1 w-full rounded-lg border border-ink-800/15 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25 dark:border-white/10 dark:bg-ink-950/40';
@@ -328,12 +329,12 @@ export function FormularioOperacao({
   const onboarding = EM_ONBOARDING(situacaoAtual);
 
   const salvar = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (codigoTotp: string) => {
       if (!onboarding && situacao !== situacaoAtual) {
         await api(`/admin/usuarios/${idPublico}/situacao`, {
           token,
           method: 'PUT',
-          body: JSON.stringify({ situacao }),
+          body: JSON.stringify({ situacao, codigoTotp }),
         });
       }
       await api(`/admin/usuarios/${idPublico}/config`, {
@@ -364,6 +365,7 @@ export function FormularioOperacao({
           percentualMedAutomatico: percMedAuto,
           adquirenteEntrada: adqE || undefined,
           adquirenteSaida: adqS || undefined,
+          codigoTotp,
         }),
       });
     },
@@ -387,7 +389,9 @@ export function FormularioOperacao({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        salvar.mutate();
+        const codigoTotp = pedirCodigoTotp();
+        if (!codigoTotp) return;
+        salvar.mutate(codigoTotp);
       }}
       className="space-y-3"
     >
@@ -791,8 +795,12 @@ export function AcoesSeguranca({
   const [confirmandoSenha, setConfirmandoSenha] = useState(false);
 
   const resetar2fa = useMutation({
-    mutationFn: () =>
-      api(`/admin/usuarios/${idPublico}/resetar-2fa`, { token, method: 'POST' }),
+    mutationFn: (codigoTotp: string) =>
+      api(`/admin/usuarios/${idPublico}/resetar-2fa`, {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ codigoTotp }),
+      }),
     onSuccess: () => {
       setErro(null);
       setOk('2FA desligado. O titular pode ativar de novo em Configurações.');
@@ -805,10 +813,11 @@ export function AcoesSeguranca({
   });
 
   const resetarSenha = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api<{ senhaProvisoria: string }>(`/admin/usuarios/${idPublico}/resetar-senha`, {
         token,
         method: 'POST',
+        body: JSON.stringify({ codigoTotp }),
       }),
     onSuccess: (r) => {
       setErro(null);
@@ -851,7 +860,13 @@ export function AcoesSeguranca({
           <button
             type="button"
             disabled={!podeEditar || !totpHabilitado || resetar2fa.isPending}
-            onClick={() => resetar2fa.mutate()}
+            onClick={() => {
+              const codigoTotp = pedirCodigoTotp(
+                'Confirme o reset de 2FA com o código da sua conta admin:',
+              );
+              if (!codigoTotp) return;
+              resetar2fa.mutate(codigoTotp);
+            }}
             className="mt-3 rounded-lg border border-red-500/40 px-3.5 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-400"
           >
             {resetar2fa.isPending ? 'Desligando…' : 'Resetar 2FA'}
@@ -901,7 +916,13 @@ export function AcoesSeguranca({
                 <button
                   type="button"
                   disabled={resetarSenha.isPending}
-                  onClick={() => resetarSenha.mutate()}
+                  onClick={() => {
+                    const codigoTotp = pedirCodigoTotp(
+                      'Confirme o reset de senha com o código da sua conta admin:',
+                    );
+                    if (!codigoTotp) return;
+                    resetarSenha.mutate(codigoTotp);
+                  }}
                   className="rounded-lg bg-red-600 px-3.5 py-1.5 text-sm font-medium text-white disabled:opacity-60"
                 >
                   {resetarSenha.isPending ? 'Gerando…' : 'Confirmar reset'}
@@ -963,7 +984,7 @@ export function IpsAutorizados({
   const recarregar = () => void qc.invalidateQueries({ queryKey: chave });
 
   const adicionar = useMutation({
-    mutationFn: (v: { credencialId: string; ip: string }) =>
+    mutationFn: (v: { credencialId: string; ip: string; codigoTotp: string }) =>
       api(`/admin/usuarios/${idPublico}/ips`, {
         token,
         method: 'POST',
@@ -978,8 +999,12 @@ export function IpsAutorizados({
   });
 
   const remover = useMutation({
-    mutationFn: (ipId: string) =>
-      api(`/admin/usuarios/${idPublico}/ips/${ipId}`, { token, method: 'DELETE' }),
+    mutationFn: (p: { ipId: string; codigoTotp: string }) =>
+      api(`/admin/usuarios/${idPublico}/ips/${p.ipId}`, {
+        token,
+        method: 'DELETE',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+      }),
     onSuccess: () => {
       setErro(null);
       recarregar();
@@ -999,7 +1024,10 @@ export function IpsAutorizados({
   function submeter(e: FormEvent, credencialId: string) {
     e.preventDefault();
     const ip = (novos[credencialId] ?? '').trim();
-    if (ip) adicionar.mutate({ credencialId, ip });
+    if (!ip) return;
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
+    adicionar.mutate({ credencialId, ip, codigoTotp });
   }
 
   return (
@@ -1031,7 +1059,11 @@ export function IpsAutorizados({
                     <button
                       type="button"
                       aria-label={`Remover ${i.ip}`}
-                      onClick={() => remover.mutate(i.id)}
+                      onClick={() => {
+                        const codigoTotp = pedirCodigoTotp();
+                        if (!codigoTotp) return;
+                        remover.mutate({ ipId: i.id, codigoTotp });
+                      }}
                       className="rounded-full p-0.5 opacity-60 transition hover:bg-red-500/20 hover:text-red-600 hover:opacity-100"
                     >
                       <X className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />

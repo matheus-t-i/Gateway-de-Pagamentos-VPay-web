@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
 
@@ -142,7 +143,7 @@ export function GatilhoModal({
     setForm((f) => ({ ...f, [k]: v }));
 
   const salvar = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (codigoTotp: string) => {
       const corpo = {
         ...form,
         ordem: Number(form.ordem || 0),
@@ -151,6 +152,7 @@ export function GatilhoModal({
         valorMinimoPayout: Number(form.valorMinimoPayout || 0),
         valorMaximoPayout: form.valorMaximoPayout === '' ? null : Number(form.valorMaximoPayout),
         intervaloMinimoMinutos: Number(form.intervaloMinimoMinutos || 0),
+        codigoTotp,
       };
       await api(
         editando ? `/admin/tesouraria/gatilhos/${gatilho!.id}` : '/admin/tesouraria/gatilhos',
@@ -176,7 +178,9 @@ export function GatilhoModal({
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          salvar.mutate();
+          const codigoTotp = pedirCodigoTotp();
+          if (!codigoTotp) return;
+          salvar.mutate(codigoTotp);
         }}
       >
         {!editando && (

@@ -21,6 +21,7 @@ import { TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Adquirente = {
   codigo: string;
@@ -59,7 +60,7 @@ export default function AdquirentesPage() {
   });
 
   const alternarMassa = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api<{ configuracoesUsuarioAtualizadas: number }>(
         '/admin/adquirentes/alternar-massa',
         {
@@ -70,6 +71,7 @@ export default function AdquirentesPage() {
             origemCodigo: origemAdq || undefined,
             cashIn,
             cashOut,
+            codigoTotp,
           }),
         },
       ),
@@ -286,7 +288,9 @@ export default function AdquirentesPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              alternarMassa.mutate();
+              const codigoTotp = pedirCodigoTotp();
+              if (!codigoTotp) return;
+              alternarMassa.mutate(codigoTotp);
             }}
             className="space-y-4"
           >

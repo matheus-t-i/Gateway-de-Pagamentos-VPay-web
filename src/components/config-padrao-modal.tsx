@@ -21,6 +21,7 @@ import {
   MODOS_MED,
   prazoEmMeses,
 } from '@/lib/config-comercial';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 /**
  * Condições comerciais que todo cliente novo recebe na ativação da conta.
@@ -143,7 +144,7 @@ export function ConfigPadraoModal({
   }, [q.data]);
 
   const salvar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api('/admin/usuarios/config-padrao', {
         token,
         method: 'PUT',
@@ -158,6 +159,7 @@ export function ConfigPadraoModal({
           permiteSaldoNegativo: String(saldoNegativo),
           origemSaquePermitida: origemSaque,
           exigirChavePixCadastrada: String(exigirChave),
+          codigoTotp,
         }),
       }),
     onSuccess: () => {
@@ -184,7 +186,9 @@ export function ConfigPadraoModal({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            salvar.mutate();
+            const codigoTotp = pedirCodigoTotp();
+            if (!codigoTotp) return;
+            salvar.mutate(codigoTotp);
           }}
           className="space-y-4"
         >

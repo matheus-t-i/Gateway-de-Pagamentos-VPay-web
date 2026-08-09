@@ -470,7 +470,7 @@ function IndicadorDoisFatores() {
 
   return (
     <Link
-      href="/configuracoes"
+      href="/configuracoes#seguranca"
       title={
         ativo
           ? 'Autenticação em dois fatores ativa'

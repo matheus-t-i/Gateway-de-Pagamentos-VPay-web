@@ -18,13 +18,11 @@ export const STATUS_CASH_IN = [
   'MED',
 ] as const;
 
-/** Situações que o cash-out assume. */
-export const STATUS_CASH_OUT = [
-  'PROCESSANDO',
-  'CONCLUIDA',
-  'FALHA',
-  'CANCELADA',
-] as const;
+/**
+ * Situações que o cash-out assume. Sem `CANCELADA`: nenhum fluxo cancela um
+ * saque, e status que nunca chega faz o lojista escrever um `if` morto.
+ */
+export const STATUS_CASH_OUT = ['PROCESSANDO', 'CONCLUIDA', 'FALHA'] as const;
 
 export type StatusCallback =
   | (typeof STATUS_CASH_IN)[number]
@@ -61,13 +59,7 @@ export const STATUS_CALLBACK_DOC: Array<{
     status: 'FALHA',
     operacoes: ['cash_in', 'cash_out'],
     descricao:
-      'A operação não vai adiante. No cash-in, nenhuma liquidante conseguiu gerar a cobrança nem pela contingência.',
-    terminal: true,
-  },
-  {
-    status: 'CANCELADA',
-    operacoes: ['cash_out'],
-    descricao: 'Saque cancelado antes de liquidar.',
+      'A operação não vai adiante. No cash-in, nenhuma liquidante conseguiu gerar a cobrança nem pela contingência. No cash-out, a liquidante recusou a ordem — o valor já debitado NÃO volta sozinho: fale com o suporte para o estorno.',
     terminal: true,
   },
   {

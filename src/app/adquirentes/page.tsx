@@ -15,6 +15,7 @@ import { Modal, ModalAcoes } from '@/components/modal';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Adquirente = {
   codigo: string;
@@ -53,11 +54,14 @@ export default function AdquirentesClientePage() {
   });
 
   const trocar = useMutation({
-    mutationFn: (codigo: string) =>
+    mutationFn: (p: { codigo: string; codigoTotp: string }) =>
       api('/painel/adquirentes/pix-entrada', {
         token: token!,
         method: 'PUT',
-        body: JSON.stringify({ adquirenteCodigo: codigo }),
+        body: JSON.stringify({
+          adquirenteCodigo: p.codigo,
+          codigoTotp: p.codigoTotp,
+        }),
       }),
     onSuccess: () => {
       setEscolhida(null);
@@ -235,7 +239,10 @@ export default function AdquirentesClientePage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (escolhida) trocar.mutate(escolhida.codigo);
+            if (!escolhida) return;
+            const codigoTotp = pedirCodigoTotp();
+            if (!codigoTotp) return;
+            trocar.mutate({ codigo: escolhida.codigo, codigoTotp });
           }}
           className="space-y-4"
         >

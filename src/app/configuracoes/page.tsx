@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -23,6 +23,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { BRAND } from '@/lib/brand';
 import { REGRAS_SENHA } from '@/lib/senha';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type InicioTotp = { segredo: string; uri: string; qrCodeDataUrl: string };
 
@@ -51,6 +52,7 @@ function Cartao({
   children,
   perigo = false,
   className = '',
+  id,
 }: {
   icone: React.ElementType;
   titulo: string;
@@ -61,10 +63,13 @@ function Cartao({
   children?: React.ReactNode;
   perigo?: boolean;
   className?: string;
+  /** Âncora para deep-link (ex.: `#seguranca` no 2FA). */
+  id?: string;
 }) {
   return (
     <section
-      className={`rounded-2xl border bg-white shadow-sm dark:bg-ink-900 ${
+      id={id}
+      className={`scroll-mt-20 rounded-2xl border bg-white shadow-sm dark:bg-ink-900 ${
         perigo
           ? 'border-red-500/30 dark:border-red-500/25'
           : 'border-ink-800/10 dark:border-white/10'
@@ -332,6 +337,7 @@ function Seguranca() {
 
   return (
     <Cartao
+      id="seguranca"
       icone={ShieldCheck}
       titulo="Verificação em duas etapas"
       descricao="Pede um código do autenticador além da senha."
@@ -499,6 +505,8 @@ function AlteracaoSenha() {
     e.preventDefault();
     setErro(null);
     setOk(null);
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
     setSalvando(true);
     try {
       await api('/painel/conta/senha', {
@@ -508,6 +516,7 @@ function AlteracaoSenha() {
           senhaAtual,
           novaSenha,
           confirmacaoNovaSenha: confirmacao,
+          codigoTotp,
         }),
       });
       setSenhaAtual('');
@@ -642,9 +651,8 @@ function EncerrarConta() {
     queryFn: () => api<Elegibilidade>('/painel/conta/encerramento', { token: token! }),
   });
 
-  const exige2FA = usuario?.totpHabilitado ?? false;
   const confirmou = confirmacaoTexto.trim().toUpperCase() === 'ENCERRAR';
-  const podeConfirmar = !!senha && confirmou && (!exige2FA || codigoTotp.length === 6);
+  const podeConfirmar = !!senha && confirmou && codigoTotp.length === 6;
   const pendentes = data?.requisitos.filter((r) => !r.atendido).length ?? 0;
 
   async function encerrar(e: FormEvent) {
@@ -657,7 +665,7 @@ function EncerrarConta() {
         method: 'POST',
         body: JSON.stringify({
           senha,
-          codigoTotp: codigoTotp || undefined,
+          codigoTotp,
           motivo: motivo || undefined,
         }),
       });
@@ -772,7 +780,7 @@ function EncerrarConta() {
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className={`block text-sm ${exige2FA ? '' : 'sm:col-span-2'}`}>
+            <label className="block text-sm">
               <TextoRotulo obrigatorio>Senha</TextoRotulo>
               <input
                 className={inputBase}
@@ -784,22 +792,20 @@ function EncerrarConta() {
               />
             </label>
 
-            {exige2FA && (
-              <label className="block text-sm">
-                <TextoRotulo obrigatorio>Código 2FA</TextoRotulo>
-                <input
-                  className={`${inputBase} text-center font-mono tracking-[0.3em]`}
-                  value={codigoTotp}
-                  onChange={(e) =>
-                    setCodigoTotp(e.target.value.replace(/\D/g, '').slice(0, 6))
-                  }
-                  inputMode="numeric"
-                  placeholder="000000"
-                  maxLength={6}
-                  required
-                />
-              </label>
-            )}
+            <label className="block text-sm">
+              <TextoRotulo obrigatorio>Código 2FA</TextoRotulo>
+              <input
+                className={`${inputBase} text-center font-mono tracking-[0.3em]`}
+                value={codigoTotp}
+                onChange={(e) =>
+                  setCodigoTotp(e.target.value.replace(/\D/g, '').slice(0, 6))
+                }
+                inputMode="numeric"
+                placeholder="000000"
+                maxLength={6}
+                required
+              />
+            </label>
           </div>
 
           <label className="block text-sm">
@@ -840,6 +846,18 @@ function EncerrarConta() {
 }
 
 export default function ConfigPage() {
+  // Deep-link do CTA "Ativar 2FA" (`/configuracoes#seguranca`).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.hash !== '#seguranca') return;
+    const el = document.getElementById('seguranca');
+    if (!el) return;
+    // Um tick para o layout do Shell assentar antes do scroll.
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
   return (
     <Shell>
       <div>

@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Historico = {
   situacaoAnterior: string;
@@ -217,21 +218,30 @@ export default function AdminChavesPixPage() {
   };
 
   const decidir = useMutation({
-    mutationFn: (p: { id: string; situacao: 'APROVADA' | 'REPROVADA'; motivo?: string }) =>
+    mutationFn: (p: {
+      id: string;
+      situacao: 'APROVADA' | 'REPROVADA';
+      motivo?: string;
+      codigoTotp: string;
+    }) =>
       api(`/admin/chaves-pix/${p.id}/decidir`, {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ situacao: p.situacao, motivo: p.motivo }),
+        body: JSON.stringify({
+          situacao: p.situacao,
+          motivo: p.motivo,
+          codigoTotp: p.codigoTotp,
+        }),
       }),
     ...aoDecidir,
   });
 
   const revogar = useMutation({
-    mutationFn: (p: { id: string; motivo: string }) =>
+    mutationFn: (p: { id: string; motivo: string; codigoTotp: string }) =>
       api(`/admin/chaves-pix/${p.id}/revogar`, {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ motivo: p.motivo }),
+        body: JSON.stringify({ motivo: p.motivo, codigoTotp: p.codigoTotp }),
       }),
     ...aoDecidir,
   });
@@ -249,10 +259,17 @@ export default function AdminChavesPixPage() {
 
   const confirmarJustificativa = (motivo: string) => {
     if (!alvo) return;
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
     if (alvo.acao === 'REVOGADA') {
-      revogar.mutate({ id: alvo.chave.idPublico, motivo });
+      revogar.mutate({ id: alvo.chave.idPublico, motivo, codigoTotp });
     } else {
-      decidir.mutate({ id: alvo.chave.idPublico, situacao: 'REPROVADA', motivo });
+      decidir.mutate({
+        id: alvo.chave.idPublico,
+        situacao: 'REPROVADA',
+        motivo,
+        codigoTotp,
+      });
     }
   };
 
@@ -319,7 +336,15 @@ export default function AdminChavesPixPage() {
               <button
                 type="button"
                 disabled={ocupado}
-                onClick={() => decidir.mutate({ id: c.idPublico, situacao: 'APROVADA' })}
+                onClick={() => {
+                  const codigoTotp = pedirCodigoTotp();
+                  if (!codigoTotp) return;
+                  decidir.mutate({
+                    id: c.idPublico,
+                    situacao: 'APROVADA',
+                    codigoTotp,
+                  });
+                }}
                 className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
               >
                 Aprovar

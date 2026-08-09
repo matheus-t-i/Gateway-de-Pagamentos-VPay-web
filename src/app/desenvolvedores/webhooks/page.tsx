@@ -14,6 +14,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 /** Extrai a mensagem legível do erro devolvido pela API (JSON ou texto). */
 function erroMsg(e: unknown) {
@@ -74,7 +75,7 @@ export default function WebhooksPage() {
   });
 
   const criar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api('/painel/webhooks', {
         token: token!,
         method: 'POST',
@@ -83,6 +84,7 @@ export default function WebhooksPage() {
           urlDestino: url,
           tiposEvento: selecionados,
           ativo: true,
+          codigoTotp,
           ...(nomeHeader.trim()
             ? { nomeHeaderAutenticacao: nomeHeader.trim(), segredoAutenticacao: segredo }
             : {}),
@@ -100,8 +102,12 @@ export default function WebhooksPage() {
   });
 
   const remover = useMutation({
-    mutationFn: (id: string) =>
-      api(`/painel/webhooks/${id}`, { token: token!, method: 'DELETE' }),
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api(`/painel/webhooks/${p.id}`, {
+        token: token!,
+        method: 'DELETE',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+      }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['webhooks'] }),
   });
 
@@ -112,7 +118,9 @@ export default function WebhooksPage() {
 
   function onCriar(e: FormEvent) {
     e.preventDefault();
-    criar.mutate();
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
+    criar.mutate(codigoTotp);
   }
 
   const dadosFiltrados = useMemo(() => {
@@ -180,7 +188,11 @@ export default function WebhooksPage() {
         podeExcluir ? (
           <button
             type="button"
-            onClick={() => remover.mutate(w.id)}
+            onClick={() => {
+              const codigoTotp = pedirCodigoTotp();
+              if (!codigoTotp) return;
+              remover.mutate({ id: w.id, codigoTotp });
+            }}
             disabled={remover.isPending}
             className="text-xs text-red-600 underline disabled:opacity-50"
           >

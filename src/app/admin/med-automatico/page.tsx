@@ -13,6 +13,7 @@ import { ModalAcoes } from '@/components/modal';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Config = {
   ativo: boolean;
@@ -65,7 +66,7 @@ export default function MedAutomaticoPage() {
   }, [cfg.data]);
 
   const salvar = useMutation({
-    mutationFn: () =>
+    mutationFn: (codigoTotp: string) =>
       api<Config>('/admin/med-automatico', {
         token: token!,
         method: 'PUT',
@@ -76,6 +77,7 @@ export default function MedAutomaticoPage() {
           toleranciaValor: Number(tolerancia.replace(',', '.')),
           contencaoAtiva,
           percentualContencaoDia: Number(percContencao.replace(',', '.')),
+          codigoTotp,
         }),
       }),
     onSuccess: () => {
@@ -91,7 +93,9 @@ export default function MedAutomaticoPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    salvar.mutate();
+    const codigoTotp = pedirCodigoTotp();
+    if (!codigoTotp) return;
+    salvar.mutate(codigoTotp);
   };
 
   return (

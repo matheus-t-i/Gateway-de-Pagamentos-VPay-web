@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 /**
  * Reenvia o callback de uma transação. O job entra na fila dedicada
@@ -31,7 +32,12 @@ export function BotaoReenviarWebhook({
       : `/painel/transacoes/${idTransacao}/reenviar-webhook`;
 
   const reenviar = useMutation({
-    mutationFn: () => api<{ ok: boolean }>(caminho, { method: 'POST', token: token! }),
+    mutationFn: (codigoTotp: string) =>
+      api<{ ok: boolean }>(caminho, {
+        method: 'POST',
+        token: token!,
+        body: JSON.stringify({ codigoTotp }),
+      }),
     onMutate: () => {
       setErro('');
       setOk(false);
@@ -48,7 +54,11 @@ export function BotaoReenviarWebhook({
     <div className="flex flex-col items-start gap-1">
       <button
         type="button"
-        onClick={() => reenviar.mutate()}
+        onClick={() => {
+          const codigoTotp = pedirCodigoTotp();
+          if (!codigoTotp) return;
+          reenviar.mutate(codigoTotp);
+        }}
         disabled={reenviar.isPending}
         title="Reenviar o callback desta transação"
         className="inline-flex items-center gap-1.5 rounded-md border border-ink-800/15 px-2.5 py-1 text-xs font-medium transition hover:bg-ink-800/5 disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/5"

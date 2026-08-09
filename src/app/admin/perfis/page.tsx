@@ -17,6 +17,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type PerfilLista = {
   id: string;
@@ -117,16 +118,17 @@ export default function AdminPerfisPage() {
   });
 
   const salvar = useMutation({
-    mutationFn: (r: Rascunho) => {
+    mutationFn: (p: { r: Rascunho; codigoTotp: string }) => {
       const corpo = {
-        nome: r.nome,
-        descricao: r.descricao || null,
-        ativo: r.ativo,
+        nome: p.r.nome,
+        descricao: p.r.descricao || null,
+        ativo: p.r.ativo,
         // ADMINISTRADOR sempre tem tudo: a API recusa mexer nas permissões dele.
-        permissoes: r.nome === 'ADMINISTRADOR' ? undefined : [...r.permissoes],
+        permissoes: p.r.nome === 'ADMINISTRADOR' ? undefined : [...p.r.permissoes],
+        codigoTotp: p.codigoTotp,
       };
-      return r.id
-        ? api(`/admin/perfis/${r.id}`, {
+      return p.r.id
+        ? api(`/admin/perfis/${p.r.id}`, {
             token: token!,
             method: 'PUT',
             body: JSON.stringify(corpo),
@@ -146,8 +148,12 @@ export default function AdminPerfisPage() {
   });
 
   const excluir = useMutation({
-    mutationFn: (id: string) =>
-      api(`/admin/perfis/${id}`, { token: token!, method: 'DELETE' }),
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api(`/admin/perfis/${p.id}`, {
+        token: token!,
+        method: 'DELETE',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+      }),
     onSuccess: () => {
       setErro(null);
       void qc.invalidateQueries({ queryKey: ['admin-perfis'] });
@@ -258,7 +264,9 @@ export default function AdminPerfisPage() {
                 ) {
                   return;
                 }
-                excluir.mutate(p.id);
+                const codigoTotp = pedirCodigoTotp();
+                if (!codigoTotp) return;
+                excluir.mutate({ id: p.id, codigoTotp });
               }}
               className="rounded border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-600 disabled:opacity-60 dark:text-red-400"
             >
@@ -337,7 +345,12 @@ export default function AdminPerfisPage() {
         pendente={salvar.isPending}
         onFechar={() => setRascunho(null)}
         onMudar={setRascunho}
-        onSalvar={() => rascunho && salvar.mutate(rascunho)}
+        onSalvar={() => {
+          if (!rascunho) return;
+          const codigoTotp = pedirCodigoTotp();
+          if (!codigoTotp) return;
+          salvar.mutate({ r: rascunho, codigoTotp });
+        }}
       />
 
       {membrosDe && token && (

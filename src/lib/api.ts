@@ -1,3 +1,5 @@
+import { avisarTotpObrigatorioSeAplicavel } from './step-up-totp-bridge';
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
 /**
@@ -46,10 +48,16 @@ function mensagemDeErro(texto: string, status: number): string {
  * Upload multipart (FormData). Não passa pelo api() porque este fixa o
  * content-type JSON — aqui o browser define o boundary sozinho.
  */
+function erroDaResposta(texto: string, status: number): Error {
+  const mensagem = mensagemDeErro(texto, status);
+  if (status === 403) avisarTotpObrigatorioSeAplicavel(mensagem);
+  return new Error(mensagem);
+}
+
 export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { method: 'POST', body: form });
   if (!res.ok) {
-    throw new Error(mensagemDeErro(await res.text(), res.status));
+    throw erroDaResposta(await res.text(), res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -68,7 +76,7 @@ export async function api<T>(
     },
   });
   if (!res.ok) {
-    throw new Error(mensagemDeErro(await res.text(), res.status));
+    throw erroDaResposta(await res.text(), res.status);
   }
   return res.json() as Promise<T>;
 }

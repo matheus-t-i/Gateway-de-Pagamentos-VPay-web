@@ -213,6 +213,142 @@ function BotaoLiberarRetencao({
   );
 }
 
+type TentativaDetalhe = {
+  numero: number;
+  situacao: string;
+  statusHttp: number | null;
+  codigoErro: string | null;
+  mensagemErro: string | null;
+  idTransacaoLiquidante: string | null;
+  respostaBanco: unknown;
+  criadoEm: string;
+  concluidoEm: string | null;
+};
+type WebhookDetalhe = {
+  tipoEvento: string;
+  situacao: string;
+  conteudo: unknown;
+  recebidoEm: string;
+  processadoEm: string | null;
+};
+type Detalhe = {
+  idTransacao: string;
+  situacao: string;
+  tentativas: TentativaDetalhe[];
+  webhooksBanco: WebhookDetalhe[];
+};
+
+function BlocoJson({ dado }: { dado: unknown }) {
+  if (dado == null) return <span className="opacity-40">—</span>;
+  return (
+    <pre className="mt-1 max-h-60 overflow-auto rounded-lg bg-ink-950 p-3 font-mono text-[11px] leading-relaxed text-sand-50">
+      {JSON.stringify(dado, null, 2)}
+    </pre>
+  );
+}
+
+/**
+ * Detalhe de suporte: a RESPOSTA DO BANCO por tentativa (o que o admin repassa
+ * ao cliente quando o saque falha) + o corpo dos webhooks que o banco enviou.
+ */
+function BotaoDetalhe({ item }: { item: Item }) {
+  const { token } = useAuth();
+  const [aberto, setAberto] = useState(false);
+
+  const det = useQuery({
+    queryKey: ['tx-detalhe', item.idTransacao],
+    enabled: aberto && !!token,
+    queryFn: () =>
+      api<Detalhe>(`/admin/relatorios/transacoes/${item.idTransacao}`, { token: token! }),
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        className="rounded-md border border-ink-800/15 px-2 py-1 text-xs font-medium transition hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+      >
+        Resposta do banco
+      </button>
+      {aberto && (
+        <Modal open={aberto} title={`Transação #${item.idTransacao.slice(0, 8)}`} onClose={() => setAberto(false)}>
+          {det.isLoading ? (
+            <p className="text-sm opacity-70">Carregando…</p>
+          ) : det.isError ? (
+            <p className="text-sm text-red-600">{erroMsg(det.error)}</p>
+          ) : (
+            <div className="space-y-4 text-sm">
+              <div className="flex items-center gap-2">
+                <BadgeSituacao situacao={det.data!.situacao} />
+                <span className="opacity-60">
+                  {det.data!.tentativas.length}{' '}
+                  {det.data!.tentativas.length === 1 ? 'tentativa' : 'tentativas'}
+                </span>
+              </div>
+
+              {det.data!.tentativas.length === 0 && (
+                <p className="opacity-70">
+                  Sem tentativas registradas — o saque ainda não foi enviado ao banco.
+                </p>
+              )}
+
+              {det.data!.tentativas.map((t) => (
+                <div
+                  key={t.numero}
+                  className="rounded-lg border border-ink-800/10 p-3 dark:border-white/10"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">Tentativa #{t.numero}</span>
+                    <BadgeSituacao situacao={t.situacao} />
+                    {t.statusHttp != null && (
+                      <span className="rounded bg-ink-800/10 px-1.5 py-0.5 font-mono text-xs dark:bg-white/10">
+                        HTTP {t.statusHttp}
+                      </span>
+                    )}
+                  </div>
+                  {t.mensagemErro && (
+                    <p className="mt-2 text-xs text-red-700 dark:text-red-300">
+                      {t.mensagemErro}
+                    </p>
+                  )}
+                  {t.idTransacaoLiquidante && (
+                    <p className="mt-1 font-mono text-xs opacity-60">
+                      id liquidante: {t.idTransacaoLiquidante}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs font-medium opacity-70">Resposta do banco</p>
+                  <BlocoJson dado={t.respostaBanco} />
+                </div>
+              ))}
+
+              {det.data!.webhooksBanco.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide opacity-50">
+                    Webhooks recebidos do banco
+                  </p>
+                  {det.data!.webhooksBanco.map((w, i) => (
+                    <div
+                      key={i}
+                      className="mt-2 rounded-lg border border-ink-800/10 p-3 dark:border-white/10"
+                    >
+                      <p className="text-xs">
+                        <span className="font-mono">{w.tipoEvento}</span> ·{' '}
+                        {new Date(w.recebidoEm).toLocaleString('pt-BR')} · {w.situacao}
+                      </p>
+                      <BlocoJson dado={w.conteudo} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
+      )}
+    </>
+  );
+}
+
 export function RelatorioTransacoes({
   direcao,
   titulo,
@@ -277,29 +413,28 @@ export function RelatorioTransacoes({
   });
 
   const colunas: Coluna<Item>[] = [
-    ...(podeReenviar || (cashIn && podeLiberar)
-      ? ([
-          {
-            chave: 'acoes',
-            titulo: 'Ação',
-            render: (t: Item) => (
-              <div className="flex flex-col gap-1">
-                {podeReenviar && (
-                  <BotaoReenviarWebhook idTransacao={t.idTransacao} escopo="admin" />
-                )}
-                {cashIn && podeLiberar && (
-                  <BotaoLiberarRetencao
-                    item={t}
-                    onLiberado={() =>
-                      void qc.invalidateQueries({ queryKey: ['rel-tx'] })
-                    }
-                  />
-                )}
-              </div>
-            ),
-          },
-        ] as Coluna<Item>[])
-      : []),
+    // A coluna de ação SEMPRE aparece: "Resposta do banco" é o detalhe de
+    // suporte disponível para quem pode ver o relatório (ADMIN_RELATORIOS_VER).
+    {
+      chave: 'acoes',
+      titulo: 'Ação',
+      render: (t: Item) => (
+        <div className="flex flex-col gap-1">
+          <BotaoDetalhe item={t} />
+          {podeReenviar && (
+            <BotaoReenviarWebhook idTransacao={t.idTransacao} escopo="admin" />
+          )}
+          {cashIn && podeLiberar && (
+            <BotaoLiberarRetencao
+              item={t}
+              onLiberado={() =>
+                void qc.invalidateQueries({ queryKey: ['rel-tx'] })
+              }
+            />
+          )}
+        </div>
+      ),
+    },
     { chave: 'criadoEm', titulo: 'Data', render: (t) => new Date(t.criadoEm).toLocaleString('pt-BR') },
     {
       chave: 'dataPagamento',
