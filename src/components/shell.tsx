@@ -608,6 +608,23 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }, [negado, destino, pathname, router]);
 
   /**
+   * 2FA obrigatório para escopo global: a API recusa (403) TUDO que não seja a
+   * própria conta enquanto o admin não ativa o segundo fator. Sem esta guarda o
+   * admin navegava pelo painel e cada tela quebrava com "erro ao carregar",
+   * sem dizer o que fazer — o indicador do topo era só uma sugestão. Aqui a
+   * ativação deixa de ser opcional: toda rota leva a Configurações → Segurança
+   * até o TOTP existir.
+   */
+  const exige2FA =
+    !!usuario && pode(PERMISSOES.ESCOPO_GLOBAL) && !usuario.totpHabilitado;
+  const naTelaDe2FA = pathname === '/configuracoes';
+
+  useEffect(() => {
+    if (!exige2FA || naTelaDe2FA) return;
+    router.replace('/configuracoes#seguranca');
+  }, [exige2FA, naTelaDe2FA, router]);
+
+  /**
    * A tela negada viaja na query string, não em estado: cada página monta o seu
    * PRÓPRIO `<Shell>`, então o redirecionamento desmonta este componente e
    * qualquer `useState` daqui morreria junto. Lido o parâmetro, ele sai da URL
@@ -681,6 +698,21 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          {exige2FA && naTelaDe2FA && (
+            <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-accent/50 bg-accent/10 px-4 py-3 text-sm">
+              <ShieldAlert
+                className="mt-0.5 h-4 w-4 shrink-0 text-accent"
+                strokeWidth={1.75}
+              />
+              <span>
+                <strong className="font-medium">
+                  Ative a verificação em duas etapas para usar o painel.
+                </strong>{' '}
+                Perfis administrativos exigem 2FA: até você concluir a ativação
+                em <em>Segurança</em>, abaixo, as outras telas ficam bloqueadas.
+              </span>
+            </div>
+          )}
           {aviso && (
             <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
               <ShieldAlert
@@ -696,7 +728,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </span>
             </div>
           )}
-          {negado ? (
+          {exige2FA && !naTelaDe2FA ? (
+            // Não renderiza a tela pedida: ela só produziria 403 em cada
+            // chamada enquanto o redirecionamento acontece.
+            <div className="rounded-lg border border-ink-800/10 px-4 py-10 text-center dark:border-white/10">
+              <ShieldAlert
+                className="mx-auto h-7 w-7 text-accent"
+                strokeWidth={1.5}
+              />
+              <p className="mt-3 text-sm font-medium">
+                Verificação em duas etapas obrigatória
+              </p>
+              <p className="mt-1 text-sm opacity-60">
+                Levando você para Configurações → Segurança…
+              </p>
+            </div>
+          ) : negado ? (
             <div className="rounded-lg border border-ink-800/10 px-4 py-10 text-center dark:border-white/10">
               <ShieldAlert
                 className="mx-auto h-7 w-7 opacity-40"
