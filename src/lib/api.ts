@@ -1,6 +1,37 @@
 import { avisarTotpObrigatorioSeAplicavel } from './step-up-totp-bridge';
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
+const urlConfigurada = process.env.NEXT_PUBLIC_API_URL;
+/**
+ * Fail-fast: build de produção SEM a variável derruba o `next build` na hora,
+ * em vez de publicar um painel que chama localhost em silêncio — a falha só
+ * aparecia no browser do cliente. Em dev o fallback continua valendo.
+ */
+if (!urlConfigurada && process.env.NODE_ENV === 'production') {
+  throw new Error(
+    'NEXT_PUBLIC_API_URL não configurada — o painel publicado chamaria ' +
+      'http://localhost:3001. Defina a variável no ambiente de build.',
+  );
+}
+export const API_URL = urlConfigurada ?? 'http://localhost:3001/api';
+
+/**
+ * 401 numa rota AUTENTICADA = sessão morta: credencial revogada, perfil
+ * inativado, conta bloqueada ou token vencido. O timer sobre o `exp` do JWT
+ * (auth.tsx) cobre só a expiração — os outros casos chegavam como "erro ao
+ * carregar" e o usuário ficava preso numa tela quebrada. Aqui a sessão é
+ * encerrada e o login explica (`?sessao=encerrada`).
+ *
+ * Só dispara quando a chamada levou token: login, onboarding e reset de senha
+ * recebem 401 legítimos de credencial errada e precisam mostrar o erro na
+ * própria tela.
+ */
+function encerrarSessaoPor401() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('vpay_token');
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login?sessao=encerrada';
+  }
+}
 
 /**
  * Extrai a mensagem legível do corpo de erro da API.
@@ -76,7 +107,9 @@ export async function api<T>(
     },
   });
   if (!res.ok) {
+    if (res.status === 401 && token) encerrarSessaoPor401();
     throw erroDaResposta(await res.text(), res.status);
   }
   return res.json() as Promise<T>;
 }
+

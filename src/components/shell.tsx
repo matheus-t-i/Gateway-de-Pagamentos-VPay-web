@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   Clock,
   Code2,
+  Hourglass,
   KeyRound,
   Landmark,
   Layers,
@@ -116,6 +117,7 @@ const GRUPOS: NavGrupo[] = [
         icone: Wallet,
         children: [
           { href: '/admin/carteiras', label: 'Carteiras dos clientes', icone: Wallet },
+          { href: '/admin/dinheiro-parado', label: 'Dinheiro parado', icone: Hourglass },
           { href: '/admin/relatorios/cash-in', label: 'Cash-in', icone: ArrowDownToLine },
           { href: '/admin/relatorios/cash-out', label: 'Cash-out', icone: ArrowUpFromLine },
           {

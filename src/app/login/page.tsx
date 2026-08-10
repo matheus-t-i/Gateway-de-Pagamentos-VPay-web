@@ -52,6 +52,16 @@ export default function LoginPage() {
     }
   }, [hidratando, token, router]);
 
+  // Chegou aqui derrubado pelo 401 global (api.ts): credencial revogada,
+  // perfil inativado, conta bloqueada ou token vencido fora do timer.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('sessao') === 'encerrada') {
+      setErro('Sua sessão foi encerrada. Entre novamente.');
+      window.history.replaceState(null, '', '/login');
+    }
+  }, []);
+
   function resetarTurnstile() {
     setTurnstileToken(null);
     turnstileRef.current?.reset();

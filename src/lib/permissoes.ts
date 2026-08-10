@@ -117,6 +117,7 @@ export const PERMISSAO_POR_ROTA: Array<[string, CodigoPermissao]> = [
   ['/admin/carteiras', PERMISSOES.ADMIN_CARTEIRAS_VER],
   ['/admin/contingencia', PERMISSOES.ADMIN_CONTINGENCIA_VER],
   ['/admin/relatorios', PERMISSOES.ADMIN_RELATORIOS_VER],
+  ['/admin/dinheiro-parado', PERMISSOES.ADMIN_RELATORIOS_VER],
   ['/admin/adquirentes', PERMISSOES.ADMIN_ADQUIRENTES_VER],
   ['/admin/retencao', PERMISSOES.ADMIN_RETENCAO_VER],
   ['/admin/med-automatico', PERMISSOES.ADMIN_MED_AUTOMATICO_VER],
