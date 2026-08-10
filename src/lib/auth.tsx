@@ -47,6 +47,8 @@ export type LoginResult = {
   motivo?: string | null;
   /** true quando a conta tem 2FA e o código ainda não foi informado. */
   requer2FA?: boolean;
+  /** Admin sem TOTP: token emitido, mas painel deve forçar ativação. */
+  requerAtivar2FA?: boolean;
   /** true quando o admin redefiniu a senha e a troca ainda não foi feita. */
   requerTrocaSenha?: boolean;
   documentosFaltantes?: string[];
@@ -64,7 +66,12 @@ type AuthState = {
    * botões — a barreira real é o 403 da API, que não depende disto.
    */
   pode: (codigo: CodigoPermissao) => boolean;
-  login: (email: string, senha: string, codigoTotp?: string) => Promise<LoginResult>;
+  login: (
+    email: string,
+    senha: string,
+    codigoTotp?: string,
+    turnstileToken?: string,
+  ) => Promise<LoginResult>;
   logout: () => void;
   refreshMe: () => Promise<void>;
   patchTema: (tema: Usuario['temaPreferido']) => Promise<void>;
@@ -129,12 +136,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string,
       senha: string,
       codigoTotp?: string,
+      turnstileToken?: string,
     ): Promise<LoginResult> => {
       const res = await api<
         LoginResult & { accessToken?: string; usuario?: Usuario }
       >('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, senha, codigoTotp: codigoTotp || undefined }),
+        body: JSON.stringify({
+          email,
+          senha,
+          codigoTotp: codigoTotp || undefined,
+          turnstileToken: turnstileToken || undefined,
+        }),
       });
       // Regra de segurança: só conta APROVADA (ATIVO) recebe/persiste token.
       if (res.situacao === 'ATIVO' && res.accessToken && res.usuario) {

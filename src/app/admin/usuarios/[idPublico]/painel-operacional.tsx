@@ -53,6 +53,10 @@ export type Config = {
   ticketMaximoPixEntrada: string;
   ticketMinimoPixSaida: string;
   ticketMaximoPixSaida: string;
+  limiteDiarioPixSaida: string;
+  maxSaquesPorHora: string;
+  saqueBloqueadoPorAbuso?: boolean;
+  saqueBloqueadoPorAbusoMotivo?: string | null;
   origemSaquePermitida: 'PAINEL' | 'API' | 'AMBOS';
   exigirChavePixCadastrada: boolean;
   retencaoMetodoAtivo: boolean;
@@ -257,6 +261,9 @@ export function FormularioOperacao({
   const [minEntrada, setMinEntrada] = useState('');
   const [maxSaida, setMaxSaida] = useState('');
   const [minSaida, setMinSaida] = useState('');
+  const [limiteDiarioSaida, setLimiteDiarioSaida] = useState('');
+  const [maxSaquesHora, setMaxSaquesHora] = useState('');
+  const [limparBloqueioAbuso, setLimparBloqueioAbuso] = useState(false);
   const [origemSaque, setOrigemSaque] = useState<'PAINEL' | 'API' | 'AMBOS'>('PAINEL');
   const [exigirChave, setExigirChave] = useState(true);
   const [baseReserva, setBaseReserva] = useState<BaseCalculoReserva>(
@@ -307,6 +314,9 @@ export function FormularioOperacao({
     setMaxEntrada(cfg.data.ticketMaximoPixEntrada);
     setMinSaida(cfg.data.ticketMinimoPixSaida);
     setMaxSaida(cfg.data.ticketMaximoPixSaida || '');
+    setLimiteDiarioSaida(cfg.data.limiteDiarioPixSaida || '');
+    setMaxSaquesHora(cfg.data.maxSaquesPorHora || '');
+    setLimparBloqueioAbuso(false);
     setOrigemSaque(cfg.data.origemSaquePermitida);
     setExigirChave(cfg.data.exigirChavePixCadastrada);
     setBaseReserva(cfg.data.baseCalculoReserva);
@@ -352,6 +362,13 @@ export function FormularioOperacao({
           // Zero ou vazio = sem teto (coluna nullable na API).
           ticketMaximoPixSaida:
             !maxSaida || Number(maxSaida) === 0 ? '' : maxSaida,
+          limiteDiarioPixSaida:
+            !limiteDiarioSaida || Number(limiteDiarioSaida) === 0
+              ? ''
+              : limiteDiarioSaida,
+          maxSaquesPorHora:
+            !maxSaquesHora || Number(maxSaquesHora) === 0 ? '' : maxSaquesHora,
+          limparBloqueioSaqueAbuso: limparBloqueioAbuso ? 'true' : 'false',
           origemSaquePermitida: origemSaque,
           exigirChavePixCadastrada: String(exigirChave),
           baseCalculoReserva: baseReserva,
@@ -451,6 +468,22 @@ export function FormularioOperacao({
               disabled={!podeEditar}
               className={celula}
             />
+            <CampoMoeda
+              label="Limite diário Pix-OUT"
+              ajuda="Soma máxima de saques no dia (horário de Brasília). Vazio = sem teto. Conta também saques que falharam depois (anti-bypass)."
+              valor={limiteDiarioSaida || '0'}
+              onChange={setLimiteDiarioSaida}
+              disabled={!podeEditar}
+              className={celula}
+            />
+            <CampoInteiro
+              label="Máx. saques / hora"
+              ajuda="Velocity: quantos saques a conta pode criar por hora corrida. Vazio = sem teto."
+              valor={maxSaquesHora}
+              onChange={setMaxSaquesHora}
+              disabled={!podeEditar}
+              className={celula}
+            />
             <CampoPercentual
               label="Taxa Cash-IN (%)"
               ajuda="Percentual cobrado do cliente em cada PIX in pago. Entra no cálculo do líquido creditado no ledger e no valor exibido no callback (deposito_liquido). Não muda ao trocar de adquirente — a taxa é do cliente."
@@ -484,6 +517,25 @@ export function FormularioOperacao({
               className={celula}
             />
           </div>
+          {cfg.data?.saqueBloqueadoPorAbuso && (
+            <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-[11px] text-amber-800 dark:text-amber-200">
+              <p className="font-semibold">Saque bloqueado por antifraude</p>
+              <p className="mt-1 opacity-90">
+                {cfg.data.saqueBloqueadoPorAbusoMotivo ??
+                  'Muitas tentativas recusadas em pouco tempo.'}
+              </p>
+              {podeEditar && (
+                <label className="mt-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={limparBloqueioAbuso}
+                    onChange={(e) => setLimparBloqueioAbuso(e.target.checked)}
+                  />
+                  Liberar saque ao salvar
+                </label>
+              )}
+            </div>
+          )}
           {onboarding && (
             <p className="mt-2 text-[11px] text-amber-600">
               Em análise — decida em{' '}

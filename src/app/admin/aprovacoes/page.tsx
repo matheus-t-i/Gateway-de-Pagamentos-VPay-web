@@ -11,6 +11,10 @@ import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import {
+  ACCEPT_DOCUMENTO,
+  mensagemErroArquivoDocumento,
+} from '@/lib/upload-documento';
 
 type UsuarioAdmin = {
   idPublico: string;
@@ -222,12 +226,17 @@ export default function AprovacoesPage() {
                     Subir contrato de prestação de serviço
                     <input
                       type="file"
-                      accept="application/pdf,image/jpeg,image/png"
+                      accept={ACCEPT_DOCUMENTO}
                       className="hidden"
                       onChange={async (ev) => {
                         const f = ev.target.files?.[0];
                         ev.target.value = '';
                         if (!f || !token) return;
+                        const rejeicao = mensagemErroArquivoDocumento(f);
+                        if (rejeicao) {
+                          setErro(rejeicao);
+                          return;
+                        }
                         const codigoTotp = pedirCodigoTotp();
                         if (!codigoTotp) return;
                         try {

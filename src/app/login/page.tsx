@@ -1,10 +1,15 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Marca } from '@/components/marca';
 import { TextoRotulo } from '@/components/obrigatorio';
+import {
+  TurnstileWidget,
+  turnstileAtivoNoCliente,
+  type TurnstileHandle,
+} from '@/components/turnstile';
 import { useAuth } from '@/lib/auth';
 import { BRAND } from '@/lib/brand';
 import { salvarCredsOnboarding } from '@/lib/onboarding';
@@ -37,6 +42,9 @@ export default function LoginPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle | null>(null);
+  const exigeTurnstile = turnstileAtivoNoCliente();
 
   useEffect(() => {
     if (!hidratando && token) {
@@ -44,19 +52,36 @@ export default function LoginPage() {
     }
   }, [hidratando, token, router]);
 
+  function resetarTurnstile() {
+    setTurnstileToken(null);
+    turnstileRef.current?.reset();
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setErro(null);
     setAviso(null);
+    if (exigeTurnstile && !turnstileToken) {
+      setErro('Confirme que você não é um robô antes de continuar.');
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await login(email, senha, codigoTotp);
+      const res = await login(
+        email,
+        senha,
+        codigoTotp,
+        turnstileToken ?? undefined,
+      );
       // Conta com 2FA: pede o código antes de qualquer token.
       if (res.requer2FA) {
         // O texto de apoio do próprio campo já explica o que fazer; usar o
         // bloco de "aviso" aqui traria o texto de conta em análise, que é outro
         // contexto.
         setPrecisa2FA(true);
+        // Token Turnstile é single-use — precisa de um novo desafio no 2º POST.
+        resetarTurnstile();
         return;
       }
       // Antes do teste de ATIVO: a conta com senha provisória responde
@@ -68,6 +93,10 @@ export default function LoginPage() {
         return;
       }
       if (res.situacao === 'ATIVO') {
+        if (res.requerAtivar2FA) {
+          router.push('/configuracoes#seguranca');
+          return;
+        }
         router.push('/dashboard');
         return;
       }
@@ -79,6 +108,7 @@ export default function LoginPage() {
       }
       if (res.situacao === 'EM_ANALISE') {
         setAviso(res.mensagem ?? 'Sua conta está em análise.');
+        resetarTurnstile();
         return;
       }
       setErro(
@@ -87,8 +117,10 @@ export default function LoginPage() {
             ? `Cadastro reprovado: ${res.motivo}`
             : 'Conta não habilitada para acesso.'),
       );
+      resetarTurnstile();
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Falha no login');
+      resetarTurnstile();
     } finally {
       setLoading(false);
     }
@@ -193,6 +225,10 @@ export default function LoginPage() {
                 </span>
               </label>
             )}
+            <TurnstileWidget
+              handleRef={turnstileRef}
+              onToken={setTurnstileToken}
+            />
             {erro && <p className="text-sm text-red-600">{erro}</p>}
             {aviso && (
               <div className="rounded-md border border-amber-400/40 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">

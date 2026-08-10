@@ -12,6 +12,11 @@ import {
   salvarCredsOnboarding,
   type OnboardingCreds,
 } from '@/lib/onboarding';
+import {
+  ACCEPT_DOCUMENTO,
+  mensagemErroArquivoDocumento,
+  TEXTO_LIMITES_DOCUMENTO,
+} from '@/lib/upload-documento';
 
 type DocsStatus = {
   enviados: Array<{
@@ -64,7 +69,7 @@ function LinhaUpload({
         {enviando === tipo ? 'Enviando…' : 'Selecionar arquivo'}
         <input
           type="file"
-          accept="application/pdf,image/jpeg,image/png"
+          accept={ACCEPT_DOCUMENTO}
           className="hidden"
           disabled={enviando !== null}
           onChange={(e) => {
@@ -132,6 +137,11 @@ export default function OnboardingDocumentosPage() {
   async function enviar(tipo: string, arquivo: File) {
     if (!creds) return;
     setErro(null);
+    const rejeicao = mensagemErroArquivoDocumento(arquivo);
+    if (rejeicao) {
+      setErro(rejeicao);
+      return;
+    }
     setEnviando(tipo);
     try {
       const fd = new FormData();
@@ -238,8 +248,8 @@ export default function OnboardingDocumentosPage() {
           ) : (
             <p className="mt-2 text-sm opacity-70">
               {status.tipoPessoa === 'PJ'
-                ? 'Envie os documentos do responsável e da pessoa jurídica (PDF, JPG ou PNG, até 10MB).'
-                : 'Envie seus documentos pessoais (PDF, JPG ou PNG, até 10MB).'}{' '}
+                ? `Envie os documentos do responsável e da pessoa jurídica (${TEXTO_LIMITES_DOCUMENTO}).`
+                : `Envie seus documentos pessoais (${TEXTO_LIMITES_DOCUMENTO}).`}{' '}
               Quando todos forem recebidos sua conta entra em análise
               automaticamente.
             </p>
