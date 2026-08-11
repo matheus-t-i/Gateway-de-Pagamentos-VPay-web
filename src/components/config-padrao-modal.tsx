@@ -47,6 +47,11 @@ type ConfigPadrao = {
   modoTratamentoMed: ModoTratamentoMed;
   permiteSaldoNegativo: boolean;
   origemSaquePermitida: 'PAINEL' | 'API' | 'AMBOS';
+  /**
+   * true = API também exige chave cadastrada/APROVADA.
+   * false = BAAS: chave livre só na API (com IP allowlist).
+   * Painel sempre exige cadastrada — independente desta flag.
+   */
   exigirChavePixCadastrada: boolean;
 };
 
@@ -402,8 +407,8 @@ export function ConfigPadraoModal({
                   disabled={!podeEditar}
                 />
                 <Interruptor
-                  label="Somente chave PIX cadastrada"
-                  dica="Vale para API e painel."
+                  label="Somente chave PIX cadastrada na API"
+                  dica="Ligado (padrão): a API também só saca para chave aprovada. Desligado: BAAS — a API aceita chave livre do cliente final, desde que a credencial tenha IP allowlist. O painel NUNCA aceita chave livre."
                   ligado={exigirChave}
                   onChange={setExigirChave}
                   disabled={!podeEditar}

@@ -636,20 +636,24 @@ Content-Type: application/json`}</Codigo>
 
               <Atencao>
                 <strong>
-                  A chave também pode precisar estar cadastrada e aprovada — inclusive
-                  pela API.
+                  Chave livre só na API (BAAS) — e só se a conta permitir.
                 </strong>{' '}
-                Por padrão a conta só saca para chave PIX que o administrador já aprovou.
-                Nesse modo, mandar uma chave qualquer no <C>chavePix</C> volta{' '}
-                <C>400</C>, mesmo com escopo e IP corretos. Se a sua conta está nesse
-                modo, cadastre a chave em Configurações → Chaves PIX e espere a
-                aprovação. Fale com o suporte se precisa sacar para chaves livres.
+                Por padrão a conta exige chave PIX cadastrada e aprovada também
+                na API: mandar uma chave qualquer no <C>chavePix</C> volta{' '}
+                <C>400</C>, mesmo com escopo e IP corretos. Se o administrador
+                desligar &quot;Somente chave cadastrada na API&quot;, a API aceita
+                chave livre do cliente final — desde que a credencial tenha IP
+                allowlist e a requisição venha de IP autorizado. Sem IP
+                cadastrado ou IP fora da lista, o saque é recusado (
+                <C>403</C>).
               </Atencao>
 
               <p>
-                Pelo painel o fluxo é outro: você não digita a chave, escolhe uma da
-                lista. O nome/documento do beneficiário vêm do cadastro — se a chave
-                estiver sem esses dados, o saque é recusado até o cadastro ser completado.
+                Pelo painel o fluxo é outro: você <strong>nunca</strong> digita
+                chave livre — escolhe uma da lista de chaves aprovadas. O
+                nome/documento do beneficiário vêm do cadastro — se a chave
+                estiver sem esses dados, o saque é recusado até o cadastro ser
+                completado.
               </p>
               <p>
                 A resposta traz o <C>idTransacao</C> e a situação{' '}

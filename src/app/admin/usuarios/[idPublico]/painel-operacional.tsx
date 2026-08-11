@@ -58,6 +58,11 @@ export type Config = {
   saqueBloqueadoPorAbuso?: boolean;
   saqueBloqueadoPorAbusoMotivo?: string | null;
   origemSaquePermitida: 'PAINEL' | 'API' | 'AMBOS';
+  /**
+   * true = API também exige chave cadastrada/APROVADA.
+   * false = BAAS: chave livre só na API (com IP allowlist).
+   * Painel sempre exige cadastrada — independente desta flag.
+   */
   exigirChavePixCadastrada: boolean;
   retencaoMetodoAtivo: boolean;
   percentualRetencaoMetodo: string;
@@ -698,15 +703,18 @@ export function FormularioOperacao({
                 className="!max-w-none"
               />
               <Interruptor
-                label="Só chave cadastrada"
-                ajuda="Exige chave PIX cadastrada e APROVADA (painel) / escopo na API. Desligado: credencial vazada pode enviar para qualquer chave — risco alto. Vale para API e painel."
+                label="Somente chave cadastrada na API"
+                ajuda="Ligado (padrão): a API também só saca para chave PIX cadastrada e APROVADA. Desligado: BAAS — a API aceita chave livre (destino do cliente final), desde que a credencial tenha IP allowlist cadastrado e a requisição venha de IP autorizado. O painel NUNCA aceita chave livre: sempre escolhe chave aprovada da conta."
                 ligado={exigirChave}
                 onChange={setExigirChave}
                 disabled={!podeEditar}
                 className="!max-w-none"
               />
               {!exigirChave && (
-                <Atencao>Credencial vazada envia a qualquer chave.</Atencao>
+                <Atencao>
+                  Chave livre só na API + IP. Painel continua exigindo chave
+                  aprovada.
+                </Atencao>
               )}
             </Coluna>
 
