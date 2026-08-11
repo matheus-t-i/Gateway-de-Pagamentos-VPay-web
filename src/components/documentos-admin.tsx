@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -24,6 +24,18 @@ export type DocumentoAdmin = {
   enviadoEm: string;
   validadoEm: string | null;
 };
+
+/** Tipo já coberto: PENDENTE (cliente enviou) ou VALIDO — não reenviar. INVALIDO libera. */
+function tipoJaEnviado(
+  documentos: DocumentoAdmin[] | undefined,
+  tipo: string,
+): boolean {
+  return (documentos ?? []).some(
+    (d) =>
+      d.tipoDocumento === tipo &&
+      (d.situacao === 'PENDENTE' || d.situacao === 'VALIDO'),
+  );
+}
 
 export const badgeDocumento: Record<string, string> = {
   PENDENTE: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
@@ -106,9 +118,11 @@ export function DocumentosAdmin({
   const qc = useQueryClient();
   const [erroUpload, setErroUpload] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [tipoEscolhido, setTipoEscolhido] = useState<string>(
-    tiposParaUploadAdmin(tipoPessoa ?? 'PF')[0],
+  const catalogoTipos = useMemo(
+    () => tiposParaUploadAdmin(tipoPessoa ?? 'PF'),
+    [tipoPessoa],
   );
+  const [tipoEscolhido, setTipoEscolhido] = useState<string>(catalogoTipos[0]);
 
   const docs = useQuery({
     queryKey: ['admin-docs', idPublico],
@@ -118,6 +132,18 @@ export function DocumentosAdmin({
         { token },
       ),
   });
+
+  const tiposDisponiveis = useMemo(
+    () => catalogoTipos.filter((t) => !tipoJaEnviado(docs.data?.documentos, t)),
+    [catalogoTipos, docs.data?.documentos],
+  );
+
+  useEffect(() => {
+    if (tiposDisponiveis.length === 0) return;
+    if (!tiposDisponiveis.includes(tipoEscolhido as (typeof tiposDisponiveis)[number])) {
+      setTipoEscolhido(tiposDisponiveis[0]);
+    }
+  }, [tiposDisponiveis, tipoEscolhido]);
 
   const validar = useMutation({
     mutationFn: (p: {
@@ -152,6 +178,12 @@ export function DocumentosAdmin({
    */
   async function enviarArquivo(arquivo: File) {
     setErroUpload(null);
+    if (!tiposDisponiveis.includes(tipoEscolhido as (typeof tiposDisponiveis)[number])) {
+      setErroUpload(
+        'Este tipo já foi enviado (pendente ou válido). Invalide o documento atual para reenviar.',
+      );
+      return;
+    }
     const rejeicao = mensagemErroArquivoDocumento(arquivo);
     if (rejeicao) {
       setErroUpload(rejeicao);
@@ -182,6 +214,9 @@ export function DocumentosAdmin({
     }
   }
 
+  const podeEnviar =
+    validavel && permitirUpload && tiposDisponiveis.length > 0 && !enviando;
+
   const blocoEnvio =
     validavel && permitirUpload ? (
       <div className="mt-3 rounded-md border border-dashed border-ink-800/20 p-3 dark:border-white/15">
@@ -190,40 +225,49 @@ export function DocumentosAdmin({
           Use quando a documentação chegar por fora do painel. Entra já como
           válida, no seu nome. {TEXTO_LIMITES_DOCUMENTO}.
         </p>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <select
-            value={tipoEscolhido}
-            onChange={(ev) => setTipoEscolhido(ev.target.value)}
-            disabled={enviando}
-            className="w-full rounded-md border border-ink-800/15 bg-transparent px-2 py-1.5 text-xs sm:w-auto dark:border-white/15"
-          >
-            {tiposParaUploadAdmin(tipoPessoa ?? 'PF').map((t) => (
-              <option key={t} value={t}>
-                {rotuloDocumento(t)}
-              </option>
-            ))}
-          </select>
-          <label
-            className={`inline-block rounded-md border border-accent px-3 py-1.5 text-center text-xs font-medium text-accent transition ${
-              enviando ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-accent/10'
-            }`}
-          >
-            {enviando ? 'Enviando…' : 'Escolher arquivo e enviar'}
-            <input
-              type="file"
-              accept={ACCEPT_DOCUMENTO}
-              className="hidden"
-              disabled={enviando}
-              onChange={(ev) => {
-                const f = ev.target.files?.[0];
-                // Limpa antes do await: sem isso, reenviar o MESMO arquivo depois
-                // de um erro não dispara `change` de novo e a tela trava.
-                ev.target.value = '';
-                if (f) void enviarArquivo(f);
-              }}
-            />
-          </label>
-        </div>
+        {tiposDisponiveis.length === 0 ? (
+          <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+            Todos os tipos já foram enviados (pendente ou válido). Para
+            substituir, marque o atual como inválido.
+          </p>
+        ) : (
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              value={tipoEscolhido}
+              onChange={(ev) => setTipoEscolhido(ev.target.value)}
+              disabled={!podeEnviar}
+              className="w-full rounded-md border border-ink-800/15 bg-white px-2 py-1.5 text-xs text-ink-950 outline-none [color-scheme:light] focus:border-accent focus:ring-2 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:border-white/15 dark:bg-ink-950 dark:text-white dark:[color-scheme:dark]"
+            >
+              {tiposDisponiveis.map((t) => (
+                <option key={t} value={t}>
+                  {rotuloDocumento(t)}
+                </option>
+              ))}
+            </select>
+            <label
+              className={`inline-block rounded-md border border-accent px-3 py-1.5 text-center text-xs font-medium text-accent transition ${
+                podeEnviar
+                  ? 'cursor-pointer hover:bg-accent/10'
+                  : 'cursor-not-allowed opacity-50'
+              }`}
+            >
+              {enviando ? 'Enviando…' : 'Escolher arquivo e enviar'}
+              <input
+                type="file"
+                accept={ACCEPT_DOCUMENTO}
+                className="hidden"
+                disabled={!podeEnviar}
+                onChange={(ev) => {
+                  const f = ev.target.files?.[0];
+                  // Limpa antes do await: sem isso, reenviar o MESMO arquivo depois
+                  // de um erro não dispara `change` de novo e a tela trava.
+                  ev.target.value = '';
+                  if (f) void enviarArquivo(f);
+                }}
+              />
+            </label>
+          </div>
+        )}
         {erroUpload && <p className="mt-2 text-xs text-red-600">{erroUpload}</p>}
       </div>
     ) : null;
