@@ -223,7 +223,9 @@ export function DocumentosAdmin({
         <p className="text-xs font-medium">Enviar documento pela VPay</p>
         <p className="mt-0.5 text-[11px] opacity-60">
           Use quando a documentação chegar por fora do painel. Entra já como
-          válida, no seu nome. {TEXTO_LIMITES_DOCUMENTO}.
+          válida, no seu nome. O contrato de prestação de serviço é só da VPay
+          (após assinatura) e não é exigido para aprovar a conta.{' '}
+          {TEXTO_LIMITES_DOCUMENTO}.
         </p>
         {tiposDisponiveis.length === 0 ? (
           <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">

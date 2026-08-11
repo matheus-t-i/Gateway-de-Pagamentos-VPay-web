@@ -51,16 +51,31 @@ function LinhaUpload({
   tipo,
   onEnviar,
   enviando,
+  reenvio,
 }: {
   tipo: string;
   onEnviar: (tipo: string, arquivo: File) => Promise<void>;
   enviando: string | null;
+  /** Documento invalidado: substitui o arquivo antigo. */
+  reenvio?: boolean;
 }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-800/10 px-4 py-3 dark:border-white/10">
-      <span className="text-sm font-medium">{rotulo(tipo)}</span>
+      <div className="min-w-0">
+        <span className="text-sm font-medium">{rotulo(tipo)}</span>
+        {reenvio && (
+          <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-300">
+            Documento invalidado — envie um novo arquivo (o anterior será
+            substituído).
+          </p>
+        )}
+      </div>
       <label className="cursor-pointer rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:opacity-90">
-        {enviando === tipo ? 'Enviando…' : 'Selecionar arquivo'}
+        {enviando === tipo
+          ? 'Enviando…'
+          : reenvio
+            ? 'Reenviar arquivo'
+            : 'Selecionar arquivo'}
         <input
           type="file"
           accept={ACCEPT_DOCUMENTO}
@@ -153,6 +168,11 @@ export default function OnboardingDocumentosPage() {
   }
 
   const tudoEnviado = status && status.documentos.faltantes.length === 0;
+  const tiposInvalidos = new Set(
+    (status?.documentos.enviados ?? [])
+      .filter((d) => d.situacao === 'INVALIDO')
+      .map((d) => d.tipoDocumento),
+  );
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 py-10 sm:px-6">
@@ -281,6 +301,7 @@ export default function OnboardingDocumentosPage() {
                     key={t}
                     tipo={t}
                     enviando={enviando}
+                    reenvio={tiposInvalidos.has(t)}
                     onEnviar={(tipo, f) => enviar(tipo, f)}
                   />
                 ))}
