@@ -1,27 +1,32 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Check,
   Clock,
+  Copy,
   KeyRound,
   Monitor,
   Moon,
   Palette,
+  ShieldAlert,
   ShieldCheck,
+  Smartphone,
   Sun,
   Trash2,
   UserRound,
   X,
 } from 'lucide-react';
 import { Shell } from '@/components/shell';
+import { Ajuda } from '@/components/ajuda';
 import { Modal, ModalAcoes } from '@/components/modal';
 import { TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { BRAND } from '@/lib/brand';
+import { PERMISSOES } from '@/lib/permissoes';
 import { REGRAS_SENHA } from '@/lib/senha';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
@@ -51,6 +56,7 @@ function Cartao({
   acessorio,
   children,
   perigo = false,
+  destaque = false,
   className = '',
   id,
 }: {
@@ -62,6 +68,8 @@ function Cartao({
   /** Sem corpo, o cartão vira uma linha só — nada de área vazia sob o título. */
   children?: React.ReactNode;
   perigo?: boolean;
+  /** Moldura em evidência para o cartão que exige ação (ex.: 2FA obrigatório). */
+  destaque?: boolean;
   className?: string;
   /** Âncora para deep-link (ex.: `#seguranca` no 2FA). */
   id?: string;
@@ -72,7 +80,9 @@ function Cartao({
       className={`scroll-mt-20 rounded-2xl border bg-white shadow-sm dark:bg-ink-900 ${
         perigo
           ? 'border-red-500/30 dark:border-red-500/25'
-          : 'border-ink-800/10 dark:border-white/10'
+          : destaque
+            ? 'border-accent/60 ring-2 ring-accent/40 shadow-lg dark:border-accent/50'
+            : 'border-ink-800/10 dark:border-white/10'
       } ${className}`}
     >
       <header
@@ -262,7 +272,7 @@ function Aparencia() {
 }
 
 function Seguranca() {
-  const { token, usuario, refreshMe } = useAuth();
+  const { token, usuario, refreshMe, pode } = useAuth();
   const [inicio, setInicio] = useState<InicioTotp | null>(null);
   const [codigo, setCodigo] = useState('');
   const [senha, setSenha] = useState('');
@@ -270,8 +280,13 @@ function Seguranca() {
   const [ok, setOk] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [desativando, setDesativando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   const ativo = usuario?.totpHabilitado ?? false;
+  // Perfil administrativo sem TOTP: a API responde 403 em todo o resto do
+  // painel até a ativação — este cartão é a única saída, então ele assume o
+  // protagonismo da tela (moldura em destaque + QR aberto sem clique).
+  const obrigatorio = !ativo && pode(PERMISSOES.ESCOPO_GLOBAL);
 
   async function iniciar() {
     setErro(null);
@@ -285,6 +300,28 @@ function Seguranca() {
       setErro(e instanceof Error ? e.message : 'Falha ao iniciar');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Na ativação obrigatória o QR abre sozinho: quem chega aqui veio do
+  // redirecionamento do Shell e o único caminho possível é ativar — o clique
+  // em "Ativar" seria só um degrau a mais na frente de quem já está travado.
+  const iniciouSozinho = useRef(false);
+  useEffect(() => {
+    if (!obrigatorio || !token || inicio || iniciouSozinho.current) return;
+    iniciouSozinho.current = true;
+    void iniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [obrigatorio, token, inicio]);
+
+  async function copiarSegredo() {
+    if (!inicio) return;
+    try {
+      await navigator.clipboard.writeText(inicio.segredo);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // Sem clipboard (http/permissão): o código continua visível para seleção manual.
     }
   }
 
@@ -333,18 +370,27 @@ function Seguranca() {
 
   // Sem passo em andamento nem mensagem, o cartão não tem corpo: vira uma linha
   // com selo e ação no cabeçalho, em vez de uma caixa alta com um botão solto.
-  const temCorpo = !!ok || !!erro || (!ativo && !!inicio) || (ativo && desativando);
+  // Na ativação obrigatória sempre há corpo: o aviso de bloqueio + o QR.
+  const temCorpo =
+    obrigatorio || !!ok || !!erro || (!ativo && !!inicio) || (ativo && desativando);
 
   return (
     <Cartao
       id="seguranca"
-      icone={ShieldCheck}
+      icone={obrigatorio ? ShieldAlert : ShieldCheck}
+      destaque={obrigatorio}
       titulo="Verificação em duas etapas"
-      descricao="Pede um código do autenticador além da senha."
+      descricao={
+        obrigatorio
+          ? 'Obrigatória para o seu perfil de acesso — ative abaixo para desbloquear o painel.'
+          : 'Pede um código do autenticador além da senha.'
+      }
       acessorio={
         <>
-          <Selo tom={ativo ? 'ok' : 'neutro'}>{ativo ? 'Ativa' : 'Inativa'}</Selo>
-          {!ativo && !inicio && (
+          <Selo tom={ativo ? 'ok' : obrigatorio ? 'alerta' : 'neutro'}>
+            {ativo ? 'Ativa' : obrigatorio ? 'Ação necessária' : 'Inativa'}
+          </Selo>
+          {!ativo && !inicio && !obrigatorio && (
             <button
               type="button"
               onClick={iniciar}
@@ -371,40 +417,92 @@ function Seguranca() {
         {ok && <Aviso tipo="ok">{ok}</Aviso>}
         {erro && <Aviso tipo="erro">{erro}</Aviso>}
 
-        {/* `flex-wrap` porque este cartão vive na coluna estreita: se não couber
-            lado a lado, o QR sobe e o passo a passo desce inteiro. */}
+        {obrigatorio && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-accent/40 bg-accent/10 px-3.5 py-3 text-sm leading-relaxed">
+            <ShieldAlert
+              className="mt-0.5 h-4 w-4 shrink-0 text-accent"
+              strokeWidth={2}
+              aria-hidden
+            />
+            <span>
+              <strong>O restante do painel fica bloqueado até você concluir esta
+              ativação.</strong>{' '}
+              Você vai precisar de um aplicativo autenticador (Google
+              Authenticator, Authy, 1Password…) — leva menos de um minuto.
+            </span>
+          </div>
+        )}
+
+        {obrigatorio && !inicio && loading && (
+          <p className="py-4 text-center text-sm opacity-60">
+            Preparando a ativação…
+          </p>
+        )}
+
+        {/* `flex-wrap` porque este cartão pode viver na coluna estreita: se não
+            couber lado a lado, o QR sobe e o passo a passo desce inteiro. */}
         {!ativo && inicio && (
           <form onSubmit={confirmar} className="flex flex-wrap gap-4">
-            <div className="shrink-0">
+            <div className="w-full space-y-3 sm:w-auto sm:shrink-0">
+              {/* No celular o QR está NA tela do autenticador — impossível de
+                  escanear. O caminho principal ali é abrir o app direto pelo
+                  link otpauth; o QR fica como alternativa para quem usa outro
+                  aparelho. */}
+              <a
+                href={inicio.uri}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-foreground transition hover:opacity-90 sm:hidden"
+              >
+                <Smartphone className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                1. Toque para abrir no app autenticador
+              </a>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={inicio.qrCodeDataUrl}
                 alt="QR Code para configurar a verificação em duas etapas"
-                className="h-36 w-36 rounded-xl bg-white p-2 ring-1 ring-ink-800/10 dark:ring-white/10"
+                className="mx-auto h-40 w-40 rounded-xl bg-white p-2 ring-1 ring-ink-800/10 sm:mx-0 sm:h-36 sm:w-36 dark:ring-white/10"
               />
             </div>
             <div className="min-w-[13rem] flex-1 space-y-3">
-              <p className="text-sm">
+              <p className="hidden text-sm sm:block">
                 <strong>1.</strong> Leia o QR Code no seu aplicativo autenticador
                 (Google Authenticator, Authy, 1Password…).
               </p>
-              <p className="text-xs opacity-70">
-                Não consegue ler? Use este código:
-                <code className="mt-1 block break-all rounded bg-ink-800/5 px-2 py-1 font-mono dark:bg-white/5">
-                  {inicio.segredo}
-                </code>
-              </p>
+              <div className="text-xs opacity-70">
+                <span className="sm:hidden">
+                  O botão não abriu seu app? Copie o código e cadastre manualmente:
+                </span>
+                <span className="hidden sm:inline">Não consegue ler? Use este código:</span>
+                <div className="mt-1 flex items-stretch gap-1.5">
+                  <code className="min-w-0 flex-1 break-all rounded bg-ink-800/5 px-2 py-1.5 font-mono dark:bg-white/5">
+                    {inicio.segredo}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={copiarSegredo}
+                    title="Copiar código"
+                    className="flex shrink-0 items-center gap-1 rounded border border-ink-800/15 px-2 text-xs transition hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+                  >
+                    {copiado ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                    )}
+                    {copiado ? 'Copiado' : 'Copiar'}
+                  </button>
+                </div>
+              </div>
               <label className="block text-sm">
                 <TextoRotulo obrigatorio>
-                  <strong>2.</strong> Código de 6 dígitos
+                  <strong>2.</strong> Código de 6 dígitos gerado pelo aplicativo
                 </TextoRotulo>
                 <input
-                  className={`${inputBase} text-center font-mono text-lg tracking-[0.4em]`}
+                  className={`${inputBase} py-3 text-center font-mono text-xl tracking-[0.4em] sm:py-2 sm:text-lg`}
                   value={codigo}
                   onChange={(e) =>
                     setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))
                   }
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   placeholder="000000"
                   maxLength={6}
                   required
@@ -414,20 +512,24 @@ function Seguranca() {
                 <button
                   type="submit"
                   disabled={loading || codigo.length !== 6}
-                  className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-60"
+                  className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-semibold text-accent-foreground transition hover:opacity-90 disabled:opacity-60 sm:w-auto sm:py-2 sm:font-medium"
                 >
                   {loading ? 'Confirmando…' : 'Confirmar e ativar'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInicio(null);
-                    setCodigo('');
-                  }}
-                  className="rounded-lg border border-ink-800/15 px-4 py-2 text-sm dark:border-white/15"
-                >
-                  Cancelar
-                </button>
+                {/* Sem "Cancelar" na ativação obrigatória: fechar o passo não
+                    destrava nada, só deixa a pessoa presa numa tela vazia. */}
+                {!obrigatorio && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInicio(null);
+                      setCodigo('');
+                    }}
+                    className="rounded-lg border border-ink-800/15 px-4 py-2 text-sm dark:border-white/15"
+                  >
+                    Cancelar
+                  </button>
+                )}
               </div>
             </div>
           </form>
@@ -505,7 +607,7 @@ function AlteracaoSenha() {
     e.preventDefault();
     setErro(null);
     setOk(null);
-    const codigoTotp = pedirCodigoTotp();
+    const codigoTotp = await pedirCodigoTotp();
     if (!codigoTotp) return;
     setSalvando(true);
     try {
@@ -601,17 +703,18 @@ function AlteracaoSenha() {
           />
         </ul>
 
-        <p className="rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2.5 text-xs leading-relaxed">
-          <strong>Importante:</strong> a nova senha passa a valer imediatamente para o
-          acesso de <strong>{usuario?.email}</strong> em todo o {BRAND.nome} — painel,
-          envio de documentos e confirmações que pedem senha (saque e 2FA). As
-          credenciais de API não mudam.
-        </p>
-
         {ok && <Aviso tipo="ok">{ok}</Aviso>}
         {erro && <Aviso tipo="erro">{erro}</Aviso>}
 
-        <div className="flex justify-end">
+        {/* O detalhe do alcance da troca fica no tooltip — o caixão âmbar
+            permanente deixava o formulário carregado. */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-1 text-xs opacity-60">
+            Vale na hora, em todo o {BRAND.nome}
+            <Ajuda
+              texto={`A nova senha passa a valer imediatamente para o acesso de ${usuario?.email ?? 'sua conta'} em todo o ${BRAND.nome} — painel, envio de documentos e confirmações que pedem senha (saque e 2FA). As credenciais de API não mudam.`}
+            />
+          </span>
           <button
             type="submit"
             disabled={!podeSalvar || salvando}
@@ -846,6 +949,18 @@ function EncerrarConta() {
 }
 
 export default function ConfigPage() {
+  const { usuario, pode } = useAuth();
+  // Espelha o `exige2FA` do Shell: admin sem TOTP só tem esta tela.
+  const obrigatorio2fa =
+    !!usuario && !usuario.totpHabilitado && pode(PERMISSOES.ESCOPO_GLOBAL);
+  // A posição não volta ao normal no instante em que a ativação conclui:
+  // mover o cartão nesse momento remontaria o componente (perdendo a mensagem
+  // de sucesso) e faria a tela saltar debaixo do dedo de quem acabou de digitar
+  // o código. Volta ao lugar na próxima visita.
+  const foiObrigatorio = useRef(false);
+  if (obrigatorio2fa) foiObrigatorio.current = true;
+  const segurancaNoTopo = obrigatorio2fa || foiObrigatorio.current;
+
   // Deep-link do CTA "Ativar 2FA" (`/configuracoes#seguranca`).
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -873,11 +988,20 @@ export default function ConfigPage() {
           A distribuição segue a ALTURA de cada cartão, não o assunto: o
           formulário de senha é o mais alto e fica sozinho à direita, enquanto os
           três cartões curtos se somam à esquerda e fecham na mesma linha de
-          base. Agrupar por assunto deixava a coluna da esquerda pela metade. */}
+          base. Agrupar por assunto deixava a coluna da esquerda pela metade.
+
+          Exceção: com o 2FA obrigatório pendente, a ativação é a ÚNICA coisa
+          que a pessoa consegue fazer — o cartão sobe para o topo em largura
+          total (primeiro também na pilha do celular) e o resto desce. */}
       <div className="mt-6 grid items-start gap-4 lg:grid-cols-12">
+        {segurancaNoTopo && (
+          <div className="lg:col-span-12">
+            <Seguranca />
+          </div>
+        )}
         <div className="flex flex-col gap-4 lg:col-span-5">
           <Perfil />
-          <Seguranca />
+          {!segurancaNoTopo && <Seguranca />}
           <Aparencia />
         </div>
         <div className="lg:col-span-7">

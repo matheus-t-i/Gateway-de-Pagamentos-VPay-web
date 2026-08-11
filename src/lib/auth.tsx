@@ -202,7 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const patchTema = useCallback(
     async (tema: Usuario['temaPreferido']) => {
       if (!token) return;
-      const codigoTotp = pedirCodigoTotp();
+      const codigoTotp = await pedirCodigoTotp();
       if (!codigoTotp) return;
       const updated = await api<{ temaPreferido: Usuario['temaPreferido'] }>(
         '/auth/me',

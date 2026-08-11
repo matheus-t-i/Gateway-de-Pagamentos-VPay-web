@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { CATALOGO_ESCOPOS } from '@/lib/escopos';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { confirmarAcao } from '@/lib/dialogos';
 
 type Credencial = {
   id: string;
@@ -96,10 +97,10 @@ function ModalEditar({
   return (
     <Modal open onClose={onFechar} title={`Editar ${credencial.nome}`}>
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           setErro(null);
-          const codigoTotp = pedirCodigoTotp();
+          const codigoTotp = await pedirCodigoTotp();
           if (!codigoTotp) return;
           salvar.mutate(codigoTotp);
         }}
@@ -267,7 +268,7 @@ export default function ChavesApiPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['credenciais'] }),
   });
 
-  function onCriar(e: FormEvent) {
+  async function onCriar(e: FormEvent) {
     e.preventDefault();
     // Sem escopo a chave não abre NENHUMA rota da API (403 em tudo). Barrar
     // aqui evita emitir um par de credenciais que nasce inútil e não pode ser
@@ -276,7 +277,7 @@ export default function ChavesApiPage() {
       setErro('Marque ao menos uma permissão: sem escopo a chave não acessa nada.');
       return;
     }
-    const codigoTotp = pedirCodigoTotp();
+    const codigoTotp = await pedirCodigoTotp();
     if (!codigoTotp) return;
     criar.mutate({
       nome,
@@ -384,16 +385,17 @@ export default function ChavesApiPage() {
                 */}
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (
-                      window.confirm(
-                        `Gerar um novo segredo para "${c.nome}"?\n\n` +
-                          'O segredo atual continua válido por 7 dias, para você atualizar ' +
-                          'suas aplicações sem parar de vender. A chave pública não muda.',
-                      )
+                      await confirmarAcao({
+                        titulo: `Gerar novo segredo para "${c.nome}"?`,
+                        mensagem:
+                          'O segredo atual continua válido por 7 dias, para você atualizar suas aplicações sem parar de vender. A chave pública não muda.',
+                        rotuloConfirmar: 'Gerar novo segredo',
+                      })
                     ) {
                       setErro(null);
-                      const codigoTotp = pedirCodigoTotp();
+                      const codigoTotp = await pedirCodigoTotp();
                       if (!codigoTotp) return;
                       rotacionar.mutate({ id: c.id, codigoTotp });
                     }
@@ -406,14 +408,17 @@ export default function ChavesApiPage() {
                 {c.segredoAnteriorAtivoAte && (
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        window.confirm(
-                          'Encerrar a janela agora? O segredo anterior para de funcionar ' +
-                            'imediatamente — só faça isso depois de atualizar todas as suas aplicações.',
-                        )
+                        await confirmarAcao({
+                          titulo: 'Encerrar a janela agora?',
+                          mensagem:
+                            'O segredo anterior para de funcionar imediatamente — só faça isso depois de atualizar todas as suas aplicações.',
+                          perigo: true,
+                          rotuloConfirmar: 'Encerrar janela',
+                        })
                       ) {
-                        const codigoTotp = pedirCodigoTotp();
+                        const codigoTotp = await pedirCodigoTotp();
                         if (!codigoTotp) return;
                         encerrarJanela.mutate({ id: c.id, codigoTotp });
                       }
@@ -429,8 +434,8 @@ export default function ChavesApiPage() {
             {podeRevogar && (
               <button
                 type="button"
-                onClick={() => {
-                  const codigoTotp = pedirCodigoTotp();
+                onClick={async () => {
+                  const codigoTotp = await pedirCodigoTotp();
                   if (!codigoTotp) return;
                   revogar.mutate({ id: c.id, codigoTotp });
                 }}

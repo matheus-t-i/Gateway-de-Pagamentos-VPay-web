@@ -18,6 +18,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { confirmarAcao } from '@/lib/dialogos';
 
 type PerfilLista = {
   id: string;
@@ -256,15 +257,18 @@ export default function AdminPerfisPage() {
             <button
               type="button"
               disabled={excluir.isPending}
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  !window.confirm(
-                    `Excluir o perfil "${p.descricao || p.nome}"? Esta ação não pode ser desfeita.`,
-                  )
+                  !(await confirmarAcao({
+                    titulo: `Excluir o perfil "${p.descricao || p.nome}"?`,
+                    mensagem: 'Esta ação não pode ser desfeita.',
+                    perigo: true,
+                    rotuloConfirmar: 'Excluir perfil',
+                  }))
                 ) {
                   return;
                 }
-                const codigoTotp = pedirCodigoTotp();
+                const codigoTotp = await pedirCodigoTotp();
                 if (!codigoTotp) return;
                 excluir.mutate({ id: p.id, codigoTotp });
               }}
@@ -345,9 +349,9 @@ export default function AdminPerfisPage() {
         pendente={salvar.isPending}
         onFechar={() => setRascunho(null)}
         onMudar={setRascunho}
-        onSalvar={() => {
+        onSalvar={async () => {
           if (!rascunho) return;
-          const codigoTotp = pedirCodigoTotp();
+          const codigoTotp = await pedirCodigoTotp();
           if (!codigoTotp) return;
           salvar.mutate({ r: rascunho, codigoTotp });
         }}

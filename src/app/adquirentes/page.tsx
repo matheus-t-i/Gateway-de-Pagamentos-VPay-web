@@ -237,10 +237,10 @@ export default function AdquirentesClientePage() {
         title="Trocar adquirente de PIX in"
       >
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!escolhida) return;
-            const codigoTotp = pedirCodigoTotp();
+            const codigoTotp = await pedirCodigoTotp();
             if (!codigoTotp) return;
             trocar.mutate({ codigo: escolhida.codigo, codigoTotp });
           }}

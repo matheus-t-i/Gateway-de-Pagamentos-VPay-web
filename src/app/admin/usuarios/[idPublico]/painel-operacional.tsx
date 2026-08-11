@@ -404,9 +404,9 @@ export function FormularioOperacao({
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        const codigoTotp = pedirCodigoTotp();
+        const codigoTotp = await pedirCodigoTotp();
         if (!codigoTotp) return;
         salvar.mutate(codigoTotp);
       }}
@@ -912,8 +912,8 @@ export function AcoesSeguranca({
           <button
             type="button"
             disabled={!podeEditar || !totpHabilitado || resetar2fa.isPending}
-            onClick={() => {
-              const codigoTotp = pedirCodigoTotp(
+            onClick={async () => {
+              const codigoTotp = await pedirCodigoTotp(
                 'Confirme o reset de 2FA com o código da sua conta admin:',
               );
               if (!codigoTotp) return;
@@ -968,8 +968,8 @@ export function AcoesSeguranca({
                 <button
                   type="button"
                   disabled={resetarSenha.isPending}
-                  onClick={() => {
-                    const codigoTotp = pedirCodigoTotp(
+                  onClick={async () => {
+                    const codigoTotp = await pedirCodigoTotp(
                       'Confirme o reset de senha com o código da sua conta admin:',
                     );
                     if (!codigoTotp) return;
@@ -1073,11 +1073,11 @@ export function IpsAutorizados({
     );
   }
 
-  function submeter(e: FormEvent, credencialId: string) {
+  async function submeter(e: FormEvent, credencialId: string) {
     e.preventDefault();
     const ip = (novos[credencialId] ?? '').trim();
     if (!ip) return;
-    const codigoTotp = pedirCodigoTotp();
+    const codigoTotp = await pedirCodigoTotp();
     if (!codigoTotp) return;
     adicionar.mutate({ credencialId, ip, codigoTotp });
   }
@@ -1111,8 +1111,8 @@ export function IpsAutorizados({
                     <button
                       type="button"
                       aria-label={`Remover ${i.ip}`}
-                      onClick={() => {
-                        const codigoTotp = pedirCodigoTotp();
+                      onClick={async () => {
+                        const codigoTotp = await pedirCodigoTotp();
                         if (!codigoTotp) return;
                         remover.mutate({ ipId: i.id, codigoTotp });
                       }}

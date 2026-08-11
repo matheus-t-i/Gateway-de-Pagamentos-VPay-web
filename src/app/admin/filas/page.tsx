@@ -19,17 +19,26 @@ export default function FilasPage() {
   // Bull Board roda na API (fora do prefixo /api).
   const bullBoardUrl = API_URL.replace(/\/api$/, '') + '/admin/queues';
 
-  // O Bull Board autentica por cookie `access_token` OU header Authorization.
-  // O JWT fica em localStorage (não em cookie) e uma navegação top-level não
-  // manda header — então plantamos o cookie antes de abrir. Cookie é escopado
-  // por host (localhost), não por porta, então chega à API. Em produção, com
-  // web e API em domínios distintos, o acesso ao Bull Board precisa de outro
-  // mecanismo (cookie httpOnly emitido pela própria API ou IP allowlist).
+  // O JWT fica em localStorage e uma navegação top-level não manda header —
+  // e cookie plantado aqui via `document.cookie` fica no domínio do PAINEL,
+  // nunca chega à API quando os dois vivem em domínios distintos (produção).
+  // Por isso a sessão é criada pela PRÓPRIA API: form POST top-level em
+  // /admin/queues/sessao com o token no corpo; ela valida, responde Set-Cookie
+  // (HttpOnly, SameSite=Lax, escopado no board) e redireciona para o board.
   function abrirBullBoard() {
-    if (token) {
-      document.cookie = `access_token=${token}; path=/; SameSite=Lax`;
-    }
-    window.open(bullBoardUrl, '_blank', 'noopener');
+    if (!token) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${bullBoardUrl}/sessao`;
+    form.target = '_blank';
+    const campo = document.createElement('input');
+    campo.type = 'hidden';
+    campo.name = 'token';
+    campo.value = token;
+    form.appendChild(campo);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
   }
 
   return (
@@ -53,8 +62,8 @@ export default function FilasPage() {
           Abrir Bull Board
         </button>
         <p className="mt-2 text-xs opacity-60">
-          O acesso usa seu token de administrador (enviado via cookie
-          access_token ao abrir).
+          O acesso usa seu token de administrador: a API cria uma sessão
+          própria do board (cookie HttpOnly) e abre em nova aba.
         </p>
       </div>
 

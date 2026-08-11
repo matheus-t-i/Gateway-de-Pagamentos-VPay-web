@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { pedirTexto } from '@/lib/dialogos';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
 
@@ -289,7 +290,7 @@ export function EditarAdquirenteModal({
       const subs = precisaSubstituir ? substituicoes : undefined;
       const mudaSituacao = situacao !== det.data?.situacao;
       // Um código para todas as mutações deste save (vitrine, edição, situação, IPs, custo).
-      const codigoTotp = pedirCodigoTotp();
+      const codigoTotp = await pedirCodigoTotp();
       if (!codigoTotp) {
         throw new Error('Código 2FA obrigatório para salvar a adquirente.');
       }
@@ -589,9 +590,9 @@ export function ClientesAdquirenteModal({
         </label>
 
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const codigoTotp = pedirCodigoTotp();
+            const codigoTotp = await pedirCodigoTotp();
             if (!codigoTotp) return;
             liberar.mutate(codigoTotp);
           }}
@@ -630,13 +631,20 @@ export function ClientesAdquirenteModal({
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  const substituta =
-                    window.prompt(
-                      'Se este cliente estiver usando esta adquirente no PIX in, ' +
-                        'informe o código da adquirente substituta (deixe vazio se não estiver):',
-                    ) ?? '';
-                  const codigoTotp = pedirCodigoTotp();
+                onClick={async () => {
+                  const resposta = await pedirTexto({
+                    titulo: 'Remover liberação do cliente',
+                    mensagem:
+                      'Se este cliente estiver usando esta adquirente no PIX in, informe o código da adquirente substituta. Deixe vazio se não estiver.',
+                    rotulo: 'Código da adquirente substituta (opcional)',
+                    umaLinha: true,
+                    maximo: 60,
+                    perigo: true,
+                    rotuloConfirmar: 'Remover liberação',
+                  });
+                  if (resposta === null) return;
+                  const substituta = resposta;
+                  const codigoTotp = await pedirCodigoTotp();
                   if (!codigoTotp) return;
                   revogar.mutate({
                     idPublico: c.idPublico,
@@ -702,9 +710,9 @@ export function NovaAdquirenteModal({
   return (
     <Modal open={open} onClose={onClose} title="Nova adquirente">
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          const codigoTotp = pedirCodigoTotp();
+          const codigoTotp = await pedirCodigoTotp();
           if (!codigoTotp) return;
           criar.mutate(codigoTotp);
         }}

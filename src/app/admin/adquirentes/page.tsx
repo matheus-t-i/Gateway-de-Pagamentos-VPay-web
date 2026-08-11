@@ -286,9 +286,9 @@ export default function AdquirentesPage() {
           </div>
         ) : (
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              const codigoTotp = pedirCodigoTotp();
+              const codigoTotp = await pedirCodigoTotp();
               if (!codigoTotp) return;
               alternarMassa.mutate(codigoTotp);
             }}

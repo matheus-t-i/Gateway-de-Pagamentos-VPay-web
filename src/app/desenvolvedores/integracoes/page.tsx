@@ -19,6 +19,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { confirmarAcao } from '@/lib/dialogos';
 import {
   type AppIntegracao,
   eventosPadraoDoApp,
@@ -216,9 +217,9 @@ export default function IntegracoesPage() {
               {apps.find((a) => a.tipo === i.tipo)?.suportaTeste && (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setAviso(null);
-                    const codigoTotp = pedirCodigoTotp();
+                    const codigoTotp = await pedirCodigoTotp();
                     if (!codigoTotp) return;
                     testar.mutate({ id: i.id, codigoTotp });
                   }}
@@ -240,13 +241,17 @@ export default function IntegracoesPage() {
           {podeExcluir && (
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  window.confirm(
-                    `Desconectar "${i.nome}"? As vendas deixam de ser enviadas para o app. O histórico de envios é mantido.`,
-                  )
+                  await confirmarAcao({
+                    titulo: `Desconectar "${i.nome}"?`,
+                    mensagem:
+                      'As vendas deixam de ser enviadas para o app. O histórico de envios é mantido.',
+                    perigo: true,
+                    rotuloConfirmar: 'Desconectar',
+                  })
                 ) {
-                  const codigoTotp = pedirCodigoTotp();
+                  const codigoTotp = await pedirCodigoTotp();
                   if (!codigoTotp) return;
                   remover.mutate({ id: i.id, codigoTotp });
                 }
@@ -460,10 +465,10 @@ function ModalIntegracao({
     setEventos(base.includes(ev) ? base.filter((e) => e !== ev) : [...base, ev]);
   }
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setErro(null);
-    const codigoTotp = pedirCodigoTotp();
+    const codigoTotp = await pedirCodigoTotp();
     if (!codigoTotp) return;
     salvar.mutate(codigoTotp);
   }
@@ -721,8 +726,8 @@ function ModalEnvios({
         podeReenviar && e.situacao !== 'SUCESSO' ? (
           <button
             type="button"
-            onClick={() => {
-              const codigoTotp = pedirCodigoTotp();
+            onClick={async () => {
+              const codigoTotp = await pedirCodigoTotp();
               if (!codigoTotp) return;
               reenviar.mutate({ envioId: e.id, codigoTotp });
             }}

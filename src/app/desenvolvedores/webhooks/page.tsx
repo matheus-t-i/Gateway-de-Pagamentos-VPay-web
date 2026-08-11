@@ -116,9 +116,9 @@ export default function WebhooksPage() {
     setEventos(base.includes(ev) ? base.filter((e) => e !== ev) : [...base, ev]);
   }
 
-  function onCriar(e: FormEvent) {
+  async function onCriar(e: FormEvent) {
     e.preventDefault();
-    const codigoTotp = pedirCodigoTotp();
+    const codigoTotp = await pedirCodigoTotp();
     if (!codigoTotp) return;
     criar.mutate(codigoTotp);
   }
@@ -188,8 +188,8 @@ export default function WebhooksPage() {
         podeExcluir ? (
           <button
             type="button"
-            onClick={() => {
-              const codigoTotp = pedirCodigoTotp();
+            onClick={async () => {
+              const codigoTotp = await pedirCodigoTotp();
               if (!codigoTotp) return;
               remover.mutate({ id: w.id, codigoTotp });
             }}

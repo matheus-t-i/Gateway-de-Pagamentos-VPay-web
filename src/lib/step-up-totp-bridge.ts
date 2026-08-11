@@ -14,11 +14,14 @@ type TotpBridge = {
   /** `false` = sem 2FA; `true` = ativo; `null` = ainda não sabemos. */
   totpHabilitado: boolean | null;
   abrirModalAtivar: () => void;
+  /** Abre o modal que coleta o código de 6 dígitos (registrado pelo host). */
+  pedirCodigo: ((mensagem?: string) => Promise<string | null>) | null;
 };
 
 const bridge: TotpBridge = {
   totpHabilitado: null,
   abrirModalAtivar: () => {},
+  pedirCodigo: null,
 };
 
 /** Registra o host React (modal + estado do auth). Só uso interno. */
@@ -52,12 +55,20 @@ export function avisarTotpObrigatorioSeAplicavel(mensagem: string): void {
  *
  * Se a conta ainda não tem 2FA, abre o modal com CTA para Configurações e
  * devolve `null` (não chega a pedir o código).
+ *
+ * O código é coletado por um MODAL React (nunca `window.prompt`): no celular a
+ * pessoa troca para o aplicativo autenticador e volta — o prompt nativo é
+ * descartado nessa troca e derrubava a ação inteira, com o formulário junto.
+ * O modal continua aberto e o estado da tela por trás fica intacto.
  */
-export function pedirCodigoTotp(mensagem?: string): string | null {
+export async function pedirCodigoTotp(mensagem?: string): Promise<string | null> {
   if (bridge.totpHabilitado === false) {
     bridge.abrirModalAtivar();
     return null;
   }
+  if (bridge.pedirCodigo) return bridge.pedirCodigo(mensagem);
+  // Host ainda não montado (não deve acontecer nas telas autenticadas):
+  // fallback no prompt nativo para não bloquear a operação.
   const codigo = window.prompt(
     mensagem ?? 'Confirme com o código 2FA (6 dígitos) da sua conta:',
   );

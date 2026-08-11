@@ -6,6 +6,7 @@ import { api, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { pedirTexto } from '@/lib/dialogos';
 import { rotuloDocumento, tiposParaUploadAdmin } from '@/lib/documentos';
 import {
   ACCEPT_DOCUMENTO,
@@ -189,7 +190,7 @@ export function DocumentosAdmin({
       setErroUpload(rejeicao);
       return;
     }
-    const codigoTotp = pedirCodigoTotp(
+    const codigoTotp = await pedirCodigoTotp(
       'Confirme o envio do documento com o código 2FA da sua conta admin:',
     );
     if (!codigoTotp) return;
@@ -327,8 +328,8 @@ export function DocumentosAdmin({
                 <>
                   <button
                     type="button"
-                    onClick={() => {
-                      const codigoTotp = pedirCodigoTotp();
+                    onClick={async () => {
+                      const codigoTotp = await pedirCodigoTotp();
                       if (!codigoTotp) return;
                       validar.mutate({ id: d.id, situacao: 'VALIDO', codigoTotp });
                     }}
@@ -338,10 +339,19 @@ export function DocumentosAdmin({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      const motivo = window.prompt('Motivo da invalidação:') ?? undefined;
-                      if (motivo === undefined) return;
-                      const codigoTotp = pedirCodigoTotp();
+                    onClick={async () => {
+                      const resposta = await pedirTexto({
+                        titulo: 'Invalidar documento',
+                        mensagem:
+                          'O motivo aparece para o cliente no reenvio do documento.',
+                        rotulo: 'Motivo (opcional)',
+                        maximo: 500,
+                        perigo: true,
+                        rotuloConfirmar: 'Invalidar',
+                      });
+                      if (resposta === null) return;
+                      const motivo = resposta || undefined;
+                      const codigoTotp = await pedirCodigoTotp();
                       if (!codigoTotp) return;
                       validar.mutate({
                         id: d.id,

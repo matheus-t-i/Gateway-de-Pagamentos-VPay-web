@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { pedirTexto } from '@/lib/dialogos';
 
 type CasoMed = {
   idPublico: string;
@@ -302,12 +303,18 @@ export default function MedPage() {
                     <button
                       type="button"
                       disabled={decidir.isPending}
-                      onClick={() => {
-                        const motivo = window.prompt(
-                          'Aceitar a contestação devolve o valor ao pagador. Motivo (opcional):',
-                        );
+                      onClick={async () => {
+                        const motivo = await pedirTexto({
+                          titulo: 'Aceitar a contestação',
+                          mensagem:
+                            'Aceitar devolve o valor ao pagador e encerra o caso.',
+                          rotulo: 'Motivo (opcional)',
+                          maximo: 500,
+                          perigo: true,
+                          rotuloConfirmar: 'Aceitar e devolver',
+                        });
                         if (motivo === null) return;
-                        const codigoTotp = pedirCodigoTotp();
+                        const codigoTotp = await pedirCodigoTotp();
                         if (!codigoTotp) return;
                         decidir.mutate({
                           id: c.idPublico,
@@ -323,12 +330,18 @@ export default function MedPage() {
                     <button
                       type="button"
                       disabled={decidir.isPending}
-                      onClick={() => {
-                        const motivo = window.prompt(
-                          'Recusar mantém o valor com o lojista. Informe o motivo:',
-                        );
+                      onClick={async () => {
+                        const motivo = await pedirTexto({
+                          titulo: 'Recusar a contestação',
+                          mensagem:
+                            'Recusar mantém o valor com o lojista e devolve o saldo bloqueado.',
+                          rotulo: 'Motivo da recusa',
+                          minimo: 1,
+                          maximo: 500,
+                          rotuloConfirmar: 'Recusar contestação',
+                        });
                         if (!motivo?.trim()) return;
-                        const codigoTotp = pedirCodigoTotp();
+                        const codigoTotp = await pedirCodigoTotp();
                         if (!codigoTotp) return;
                         decidir.mutate({
                           id: c.idPublico,

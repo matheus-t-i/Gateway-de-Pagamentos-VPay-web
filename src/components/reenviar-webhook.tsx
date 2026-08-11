@@ -54,8 +54,8 @@ export function BotaoReenviarWebhook({
     <div className="flex flex-col items-start gap-1">
       <button
         type="button"
-        onClick={() => {
-          const codigoTotp = pedirCodigoTotp();
+        onClick={async () => {
+          const codigoTotp = await pedirCodigoTotp();
           if (!codigoTotp) return;
           reenviar.mutate(codigoTotp);
         }}

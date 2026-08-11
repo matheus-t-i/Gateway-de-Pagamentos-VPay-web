@@ -257,9 +257,9 @@ export default function AdminChavesPixPage() {
     );
   }, [chaves.data, busca]);
 
-  const confirmarJustificativa = (motivo: string) => {
+  const confirmarJustificativa = async (motivo: string) => {
     if (!alvo) return;
-    const codigoTotp = pedirCodigoTotp();
+    const codigoTotp = await pedirCodigoTotp();
     if (!codigoTotp) return;
     if (alvo.acao === 'REVOGADA') {
       revogar.mutate({ id: alvo.chave.idPublico, motivo, codigoTotp });
@@ -336,8 +336,8 @@ export default function AdminChavesPixPage() {
               <button
                 type="button"
                 disabled={ocupado}
-                onClick={() => {
-                  const codigoTotp = pedirCodigoTotp();
+                onClick={async () => {
+                  const codigoTotp = await pedirCodigoTotp();
                   if (!codigoTotp) return;
                   decidir.mutate({
                     id: c.idPublico,

@@ -11,6 +11,7 @@ import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { pedirTexto } from '@/lib/dialogos';
 
 type UsuarioAdmin = {
   idPublico: string;
@@ -243,20 +244,19 @@ export default function AprovacoesPage() {
                       <div className="mt-3">
                         <button
                           type="button"
-                          onClick={() => {
-                            const justificativa = window.prompt(
-                              'Ativar SEM a documentação completa.\n\n' +
-                                'Isto libera a conta para movimentar dinheiro sem o KYC concluído e fica registrado na auditoria.\n\n' +
-                                'Justifique (mín. 10 caracteres):',
-                            );
+                          onClick={async () => {
+                            const justificativa = await pedirTexto({
+                              titulo: 'Ativar sem a documentação completa',
+                              mensagem:
+                                'Isto libera a conta para movimentar dinheiro sem o KYC concluído e fica registrado na auditoria.',
+                              rotulo: 'Justificativa',
+                              minimo: 10,
+                              maximo: 500,
+                              perigo: true,
+                              rotuloConfirmar: 'Ativar sem documentação',
+                            });
                             if (!justificativa) return;
-                            if (justificativa.trim().length < 10) {
-                              setErro(
-                                'A justificativa precisa ter ao menos 10 caracteres.',
-                              );
-                              return;
-                            }
-                            const codigoTotp = pedirCodigoTotp(
+                            const codigoTotp = await pedirCodigoTotp(
                               'Confirme a ativação SEM documentação com o código 2FA:',
                             );
                             if (!codigoTotp) return;
@@ -277,8 +277,8 @@ export default function AprovacoesPage() {
                     <div className="mt-3 flex gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          const codigoTotp = pedirCodigoTotp(
+                        onClick={async () => {
+                          const codigoTotp = await pedirCodigoTotp(
                             'Confirme a aprovação com o código 2FA da sua conta admin:',
                           );
                           if (!codigoTotp) return;
@@ -290,10 +290,19 @@ export default function AprovacoesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const motivo = window.prompt('Motivo da reprovação:');
+                        onClick={async () => {
+                          const motivo = await pedirTexto({
+                            titulo: 'Reprovar cadastro',
+                            mensagem:
+                              'O motivo fica registrado no histórico da conta e é o que o cliente consulta depois.',
+                            rotulo: 'Motivo da reprovação',
+                            minimo: 3,
+                            maximo: 500,
+                            perigo: true,
+                            rotuloConfirmar: 'Reprovar',
+                          });
                           if (!motivo) return;
-                          const codigoTotp = pedirCodigoTotp(
+                          const codigoTotp = await pedirCodigoTotp(
                             'Confirme a reprovação com o código 2FA da sua conta admin:',
                           );
                           if (!codigoTotp) return;

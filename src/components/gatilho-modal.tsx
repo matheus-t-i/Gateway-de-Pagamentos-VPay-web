@@ -176,9 +176,9 @@ export function GatilhoModal({
     >
       <form
         className="space-y-3"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          const codigoTotp = pedirCodigoTotp();
+          const codigoTotp = await pedirCodigoTotp();
           if (!codigoTotp) return;
           salvar.mutate(codigoTotp);
         }}

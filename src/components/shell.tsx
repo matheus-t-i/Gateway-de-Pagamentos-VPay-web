@@ -452,7 +452,9 @@ function ContadorSessao() {
       ).toLocaleTimeString('pt-BR')})`}
       className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums sm:px-3 ${cor}`}
     >
-      <Clock className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+      {/* Sem o ícone no celular: o cabeçalho (relógio + 2FA + usuário) estourava
+          os 375px e a página inteira ganhava scroll horizontal. */}
+      <Clock className="hidden h-3.5 w-3.5 shrink-0 sm:block" strokeWidth={1.75} />
       <span className="sr-only">Sessão expira em </span>
       {formatarRestante(restante)}
     </span>
@@ -512,7 +514,7 @@ function MenuUsuario() {
           {inicial}
         </span>
         <span className="hidden max-w-[10rem] truncate sm:block">{usuario?.email}</span>
-        <span className="opacity-60">▾</span>
+        <span className="hidden opacity-60 sm:inline">▾</span>
       </button>
 
       {aberto && (

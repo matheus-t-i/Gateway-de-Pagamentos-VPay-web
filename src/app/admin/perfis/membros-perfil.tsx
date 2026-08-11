@@ -140,8 +140,8 @@ export function MembrosPerfil({
                         type="button"
                         aria-label={`Remover ${u.nome} do perfil`}
                         disabled={alterar.isPending}
-                        onClick={() => {
-                          const codigoTotp = pedirCodigoTotp();
+                        onClick={async () => {
+                          const codigoTotp = await pedirCodigoTotp();
                           if (!codigoTotp) return;
                           alterar.mutate({ usuario: u, incluir: false, codigoTotp });
                         }}
@@ -182,8 +182,8 @@ export function MembrosPerfil({
                         type="button"
                         aria-label={`Adicionar ${u.nome} ao perfil`}
                         disabled={alterar.isPending}
-                        onClick={() => {
-                          const codigoTotp = pedirCodigoTotp();
+                        onClick={async () => {
+                          const codigoTotp = await pedirCodigoTotp();
                           if (!codigoTotp) return;
                           alterar.mutate({ usuario: u, incluir: true, codigoTotp });
                         }}

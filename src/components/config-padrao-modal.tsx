@@ -32,6 +32,8 @@ import { pedirCodigoTotp } from '@/lib/step-up-totp';
  * mudanças neste padrão.
  */
 type ConfigPadrao = {
+  /** true = a linha ainda não existe; o GET devolveu sugestões e o PUT cria. */
+  primeiraConfiguracao?: boolean;
   taxaPixEntradaPercentual: string;
   taxaPixEntradaFixa: string;
   taxaPixSaidaPercentual: string;
@@ -184,14 +186,28 @@ export function ConfigPadraoModal({
         <p className="text-sm text-red-600">{erroMsg(q.error)}</p>
       ) : (
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const codigoTotp = pedirCodigoTotp();
+            const codigoTotp = await pedirCodigoTotp();
             if (!codigoTotp) return;
             salvar.mutate(codigoTotp);
           }}
           className="space-y-4"
         >
+          {q.data?.primeiraConfiguracao && (
+            <p className="flex items-start gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2.5 text-sm">
+              <AlertTriangle
+                className="mt-0.5 h-4 w-4 shrink-0 text-accent"
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span>
+                <strong>Primeira configuração.</strong> O padrão ainda não
+                existe — os valores abaixo são sugestões do sistema. Ao salvar,
+                ele passa a valer para toda conta ativada daqui em diante.
+              </span>
+            </p>
+          )}
           <p className="text-xs opacity-60">
             Ponto de partida de toda conta ativada a partir de agora. Cliente já
             ativo não é alterado — para mudar um deles, abra o cadastro dele.

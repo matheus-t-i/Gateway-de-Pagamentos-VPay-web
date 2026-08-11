@@ -269,8 +269,8 @@ export default function SaldosPage() {
               type="button"
               disabled={!g.ativo || executar.isPending}
               className="text-xs text-accent underline disabled:opacity-40 disabled:no-underline"
-              onClick={() => {
-                const codigoTotp = pedirCodigoTotp();
+              onClick={async () => {
+                const codigoTotp = await pedirCodigoTotp();
                 if (!codigoTotp) return;
                 executar.mutate({ id: g.id, codigoTotp });
               }}
@@ -340,8 +340,8 @@ export default function SaldosPage() {
         {podeExecutar && (
           <button
             type="button"
-            onClick={() => {
-              const codigoTotp = pedirCodigoTotp();
+            onClick={async () => {
+              const codigoTotp = await pedirCodigoTotp();
               if (!codigoTotp) return;
               atualizar.mutate(codigoTotp);
             }}

@@ -732,9 +732,9 @@ export default function CarteirasPage() {
       >
         {bloquear && (
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              const codigoTotp = pedirCodigoTotp();
+              const codigoTotp = await pedirCodigoTotp();
               if (!codigoTotp) return;
               criarBloqueio.mutate({
                 idPublico: bloquear.idPublico,
@@ -802,9 +802,9 @@ export default function CarteirasPage() {
       >
         {decidir && (
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              const codigoTotp = pedirCodigoTotp();
+              const codigoTotp = await pedirCodigoTotp();
               if (!codigoTotp) return;
               decidirBloqueio.mutate({
                 idPublico: decidir.bloqueio.idPublico,

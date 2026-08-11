@@ -135,9 +135,9 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
     <Modal open={open} onClose={fechar} title="Depósito interno via PIX">
       {!resp ? (
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const codigoTotp = pedirCodigoTotp(
+            const codigoTotp = await pedirCodigoTotp(
               'Confirme o depósito com o código 2FA (6 dígitos):',
             );
             if (!codigoTotp) return;
@@ -281,9 +281,9 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
         <div className="space-y-4">
           {aprovadas.length > 0 ? (
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                const codigoTotp = pedirCodigoTotp(
+                const codigoTotp = await pedirCodigoTotp(
                   'Confirme o saque com o código 2FA (6 dígitos):',
                 );
                 if (!codigoTotp) return;
@@ -358,9 +358,9 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
             </button>
           ) : (
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                const codigoTotp = pedirCodigoTotp(
+                const codigoTotp = await pedirCodigoTotp(
                   'Confirme o cadastro da chave PIX com o código 2FA (6 dígitos):',
                 );
                 if (!codigoTotp) return;
@@ -465,9 +465,9 @@ function CredencialModal({ open, onClose, token }: ModalProps) {
     <Modal open={open} onClose={fechar} title="Criar credencial de API">
       {!criada ? (
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const codigoTotp = pedirCodigoTotp();
+            const codigoTotp = await pedirCodigoTotp();
             if (!codigoTotp) return;
             criar.mutate(codigoTotp);
           }}

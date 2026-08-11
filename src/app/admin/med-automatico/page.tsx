@@ -91,9 +91,9 @@ export default function MedAutomaticoPage() {
     },
   });
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const codigoTotp = pedirCodigoTotp();
+    const codigoTotp = await pedirCodigoTotp();
     if (!codigoTotp) return;
     salvar.mutate(codigoTotp);
   };

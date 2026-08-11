@@ -298,8 +298,8 @@ function EditorCadeia({
             </button>
             <button
               type="button"
-              onClick={() => {
-                const codigoTotp = pedirCodigoTotp();
+              onClick={async () => {
+                const codigoTotp = await pedirCodigoTotp();
                 if (!codigoTotp) return;
                 salvar.mutate(codigoTotp);
               }}

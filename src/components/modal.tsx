@@ -74,11 +74,14 @@ export function ModalAcoes({
   rotulo = 'Salvar',
   pendente,
   desabilitado,
+  tom = 'padrao',
 }: {
   onCancelar: () => void;
   rotulo?: string;
   pendente?: boolean;
   desabilitado?: boolean;
+  /** `perigo` pinta a ação primária de vermelho (exclusões, revogações…). */
+  tom?: 'padrao' | 'perigo';
 }) {
   return (
     <div className="flex items-center justify-between gap-3 pt-2">
@@ -92,7 +95,11 @@ export function ModalAcoes({
       <button
         type="submit"
         disabled={pendente || desabilitado}
-        className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
+        className={`rounded-md px-4 py-2 text-sm font-medium transition hover:opacity-90 disabled:opacity-50 ${
+          tom === 'perigo'
+            ? 'bg-red-600 text-white'
+            : 'bg-accent text-accent-foreground'
+        }`}
       >
         {pendente ? 'Salvando…' : rotulo}
       </button>
