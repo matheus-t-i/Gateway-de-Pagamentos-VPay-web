@@ -36,13 +36,21 @@ export const badgeDocumento: Record<string, string> = {
   REPROVADA: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300',
 };
 
+/** Garante MIME no blob — resposta sem Content-Type vira download UUID sem extensão. */
+async function blobDoArquivo(res: Response, doc: DocumentoAdmin): Promise<Blob> {
+  const bruto = await res.blob();
+  const tipo = bruto.type || doc.tipoMime || '';
+  if (tipo && bruto.type !== tipo) return new Blob([bruto], { type: tipo });
+  return bruto;
+}
+
 /** Abre o arquivo em nova aba; PDFs e imagens o browser renderiza inline. */
 async function abrirEmNovaAba(doc: DocumentoAdmin, token: string) {
   const res = await fetch(`${API_URL}/admin/documentos/${doc.id}/arquivo`, {
     headers: { authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(await res.text());
-  const url = URL.createObjectURL(await res.blob());
+  const url = URL.createObjectURL(await blobDoArquivo(res, doc));
   window.open(url, '_blank', 'noopener');
   // Revoga só depois de a aba ter carregado o blob.
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -53,7 +61,7 @@ async function baixar(doc: DocumentoAdmin, token: string) {
     headers: { authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(await res.text());
-  const url = URL.createObjectURL(await res.blob());
+  const url = URL.createObjectURL(await blobDoArquivo(res, doc));
   const a = document.createElement('a');
   a.href = url;
   a.download = doc.nomeArquivo;
