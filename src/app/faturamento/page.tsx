@@ -495,8 +495,8 @@ export default function FaturamentoPage() {
                     tickFormatter={(v) => brlCurto(v)}
                   />
                   <Tooltip
-                    formatter={(v: number, _n, item) => [
-                      `${brl(v)} · ${item?.payload?.qtd ?? 0} vendas`,
+                    formatter={(v, _n, item) => [
+                      `${brl(Number(v))} · ${item?.payload?.qtd ?? 0} vendas`,
                       'Faturamento',
                     ]}
                     contentStyle={{

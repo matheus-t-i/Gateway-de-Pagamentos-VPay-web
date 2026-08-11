@@ -506,7 +506,7 @@ export default function DashboardPage() {
                   width={64}
                   tickFormatter={(v) => brl(v).replace('R$ ', 'R$')}
                 />
-                <Tooltip formatter={(v: number) => brl(v)} contentStyle={TOOLTIP_STYLE} />
+                <Tooltip formatter={(v) => brl(Number(v))} contentStyle={TOOLTIP_STYLE} />
                 <Area
                   type="monotone"
                   dataKey="geradas"

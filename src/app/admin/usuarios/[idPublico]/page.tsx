@@ -323,6 +323,7 @@ export default function UsuarioDetalhePage() {
             <DocumentosAdmin
               idPublico={u.idPublico}
               token={token}
+              tipoPessoa={u.tipoPessoa}
               onAtualizar={recarregar}
             />
           </Bloco>

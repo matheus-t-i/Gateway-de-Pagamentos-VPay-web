@@ -6,6 +6,7 @@ import { Marca } from '@/components/marca';
 import { TextoRotulo } from '@/components/obrigatorio';
 import { api, apiUpload } from '@/lib/api';
 import { BRAND } from '@/lib/brand';
+import { rotuloDocumento } from '@/lib/documentos';
 import {
   lerCredsOnboarding,
   limparCredsOnboarding,
@@ -35,17 +36,10 @@ type Status = {
   documentos: DocsStatus;
 };
 
-const ROTULOS: Record<string, string> = {
-  RG_CNH_FRENTE: 'Foto da frente do RG ou CNH',
-  RG_CNH_VERSO: 'Foto do verso do RG ou CNH',
-  SELFIE_COM_DOCUMENTO: 'Selfie segurando o RG ou CNH',
-  CONTRATO_SOCIAL: 'Contrato social',
-  CARTAO_CNPJ: 'Cartão CNPJ',
-  COMPROVANTE_ENDERECO_EMPRESA: 'Comprovante de endereço da pessoa jurídica',
-  CONTRATO_PRESTACAO_SERVICO: 'Contrato de prestação de serviço',
-};
-
-const rotulo = (t: string) => ROTULOS[t] ?? t;
+// Os rótulos moram em `@/lib/documentos` — o admin também os usa para subir
+// documento pela ficha do cliente, e duas cópias divergiriam no primeiro ajuste
+// de texto.
+const rotulo = rotuloDocumento;
 
 const badgeCls: Record<string, string> = {
   PENDENTE: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',

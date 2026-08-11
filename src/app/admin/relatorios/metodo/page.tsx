@@ -636,8 +636,8 @@ export default function RelatorioMetodoPage() {
                           }
                         />
                         <Tooltip
-                          formatter={(v: number, name: string) => [
-                            brl(v),
+                          formatter={(v, name) => [
+                            brl(Number(v)),
                             name === 'faturamento'
                               ? 'Faturamento (pagas + retidas)'
                               : 'MED + MEDs retidos',

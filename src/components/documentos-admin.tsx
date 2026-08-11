@@ -1,10 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import { rotuloDocumento, tiposParaUploadAdmin } from '@/lib/documentos';
+import {
+  ACCEPT_DOCUMENTO,
+  TEXTO_LIMITES_DOCUMENTO,
+  mensagemErroArquivoDocumento,
+} from '@/lib/upload-documento';
 
 export type DocumentoAdmin = {
   id: string;
@@ -72,6 +79,8 @@ export function DocumentosAdmin({
   token,
   podeValidar,
   onAtualizar,
+  tipoPessoa,
+  permitirUpload = true,
 }: {
   idPublico: string;
   token: string;
@@ -79,10 +88,19 @@ export function DocumentosAdmin({
   podeValidar?: boolean;
   /** Chamado após validar/invalidar, para a tela refrescar seus contadores. */
   onAtualizar?: () => void;
+  /** Decide se os documentos societários entram no seletor de upload. */
+  tipoPessoa?: 'PF' | 'PJ';
+  /** false esconde o envio pelo admin (lista puramente de consulta). */
+  permitirUpload?: boolean;
 }) {
   const { pode } = useAuth();
   const validavel = podeValidar ?? pode(PERMISSOES.ADMIN_APROVACOES_APROVAR);
   const qc = useQueryClient();
+  const [erroUpload, setErroUpload] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [tipoEscolhido, setTipoEscolhido] = useState<string>(
+    tiposParaUploadAdmin(tipoPessoa ?? 'PF')[0],
+  );
 
   const docs = useQuery({
     queryKey: ['admin-docs', idPublico],
@@ -115,13 +133,106 @@ export function DocumentosAdmin({
     },
   });
 
+  /**
+   * Envio pela VPay: usado quando o cliente não manda a documentação e ela chega
+   * por outro canal (e-mail, WhatsApp, presencial). Vai como `multipart/form-data`
+   * direto no `fetch` — o helper `api()` serializa JSON e não serve aqui.
+   *
+   * O documento nasce VALIDO no servidor, validado por quem subiu: quem tem o
+   * arquivo na mão e a permissão de aprovar já conferiu — mandar para a própria
+   * fila de validação seria pedir que a pessoa se aprovasse depois.
+   */
+  async function enviarArquivo(arquivo: File) {
+    setErroUpload(null);
+    const rejeicao = mensagemErroArquivoDocumento(arquivo);
+    if (rejeicao) {
+      setErroUpload(rejeicao);
+      return;
+    }
+    const codigoTotp = pedirCodigoTotp(
+      'Confirme o envio do documento com o código 2FA da sua conta admin:',
+    );
+    if (!codigoTotp) return;
+    setEnviando(true);
+    try {
+      const fd = new FormData();
+      fd.append('tipoDocumento', tipoEscolhido);
+      fd.append('arquivo', arquivo);
+      fd.append('codigoTotp', codigoTotp);
+      const res = await fetch(`${API_URL}/admin/usuarios/${idPublico}/documentos`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      void qc.invalidateQueries({ queryKey: ['admin-docs', idPublico] });
+      onAtualizar?.();
+    } catch (e) {
+      setErroUpload(e instanceof Error ? e.message : 'Falha ao enviar o documento.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const blocoEnvio =
+    validavel && permitirUpload ? (
+      <div className="mt-3 rounded-md border border-dashed border-ink-800/20 p-3 dark:border-white/15">
+        <p className="text-xs font-medium">Enviar documento pela VPay</p>
+        <p className="mt-0.5 text-[11px] opacity-60">
+          Use quando a documentação chegar por fora do painel. Entra já como
+          válida, no seu nome. {TEXTO_LIMITES_DOCUMENTO}.
+        </p>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            value={tipoEscolhido}
+            onChange={(ev) => setTipoEscolhido(ev.target.value)}
+            disabled={enviando}
+            className="w-full rounded-md border border-ink-800/15 bg-transparent px-2 py-1.5 text-xs sm:w-auto dark:border-white/15"
+          >
+            {tiposParaUploadAdmin(tipoPessoa ?? 'PF').map((t) => (
+              <option key={t} value={t}>
+                {rotuloDocumento(t)}
+              </option>
+            ))}
+          </select>
+          <label
+            className={`inline-block rounded-md border border-accent px-3 py-1.5 text-center text-xs font-medium text-accent transition ${
+              enviando ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-accent/10'
+            }`}
+          >
+            {enviando ? 'Enviando…' : 'Escolher arquivo e enviar'}
+            <input
+              type="file"
+              accept={ACCEPT_DOCUMENTO}
+              className="hidden"
+              disabled={enviando}
+              onChange={(ev) => {
+                const f = ev.target.files?.[0];
+                // Limpa antes do await: sem isso, reenviar o MESMO arquivo depois
+                // de um erro não dispara `change` de novo e a tela trava.
+                ev.target.value = '';
+                if (f) void enviarArquivo(f);
+              }}
+            />
+          </label>
+        </div>
+        {erroUpload && <p className="mt-2 text-xs text-red-600">{erroUpload}</p>}
+      </div>
+    ) : null;
+
   if (docs.isLoading) return <p className="text-xs opacity-60">Carregando documentos…</p>;
   if (docs.isError)
     return <p className="text-xs text-red-600">Falha ao carregar os documentos.</p>;
   if (!docs.data?.documentos.length)
-    return <p className="text-xs opacity-60">Nenhum documento enviado.</p>;
+    return (
+      <>
+        <p className="text-xs opacity-60">Nenhum documento enviado.</p>
+        {blocoEnvio}
+      </>
+    );
 
   return (
+    <>
     <ul className="space-y-2">
       {docs.data.documentos.map((d) => (
         <li
@@ -130,7 +241,10 @@ export function DocumentosAdmin({
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="font-medium">{d.tipoDocumento}</p>
+              {/* Mesmo rótulo do seletor de envio logo abaixo — deixar o enum
+                  cru aqui e o nome amigável ali confundiria as duas metades do
+                  mesmo card. */}
+              <p className="font-medium">{rotuloDocumento(d.tipoDocumento)}</p>
               <p className="truncate text-xs opacity-60">
                 {d.nomeArquivo}
                 {tamanho(d.tamanhoBytes) ? ` · ${tamanho(d.tamanhoBytes)}` : ''} · enviado
@@ -196,5 +310,7 @@ export function DocumentosAdmin({
         </li>
       ))}
     </ul>
+    {blocoEnvio}
+    </>
   );
 }

@@ -6,15 +6,11 @@ import { Shell } from '@/components/shell';
 import { BarraFiltros, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { badgeDocumento as badge, DocumentosAdmin } from '@/components/documentos-admin';
 import { IdadeSolicitacao } from '@/components/status';
-import { api, API_URL } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
-import {
-  ACCEPT_DOCUMENTO,
-  mensagemErroArquivoDocumento,
-} from '@/lib/upload-documento';
 
 type UsuarioAdmin = {
   idPublico: string;
@@ -104,11 +100,22 @@ export default function AprovacoesPage() {
     setErro(e instanceof Error ? e.message : 'Operação falhou');
 
   const ativarUsuario = useMutation({
-    mutationFn: (p: { id: string; codigoTotp: string }) =>
+    mutationFn: (p: {
+      id: string;
+      codigoTotp: string;
+      /** Exceção de KYC: exige justificativa e vira registro de auditoria. */
+      semDocumentacao?: boolean;
+      justificativa?: string;
+    }) =>
       api(`/admin/usuarios/${p.id}/ativar`, {
         token: token!,
         method: 'POST',
-        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+        body: JSON.stringify({
+          codigoTotp: p.codigoTotp,
+          ...(p.semDocumentacao
+            ? { semDocumentacao: true, justificativa: p.justificativa }
+            : {}),
+        }),
       }),
     onSuccess: invalidate,
     onError: onErro,
@@ -216,52 +223,56 @@ export default function AprovacoesPage() {
                       ? 'Documentos do responsável e da empresa'
                       : 'Documentos do titular'}
                   </h3>
+                  {/* O envio pela VPay (contrato assinado e, quando o cliente
+                      não manda, a própria documentação) mora no componente:
+                      assim a ficha do cliente em /admin/usuarios tem o mesmo
+                      recurso, sem duplicar o formulário. */}
                   <DocumentosAdmin
                     idPublico={u.idPublico}
                     token={token}
+                    tipoPessoa={u.tipoPessoa}
                     onAtualizar={invalidate}
                   />
-                  {/* Upload do contrato de prestação de serviço assinado (VPay) */}
-                  <label className="mt-3 inline-block cursor-pointer rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent transition hover:bg-accent/10">
-                    Subir contrato de prestação de serviço
-                    <input
-                      type="file"
-                      accept={ACCEPT_DOCUMENTO}
-                      className="hidden"
-                      onChange={async (ev) => {
-                        const f = ev.target.files?.[0];
-                        ev.target.value = '';
-                        if (!f || !token) return;
-                        const rejeicao = mensagemErroArquivoDocumento(f);
-                        if (rejeicao) {
-                          setErro(rejeicao);
-                          return;
-                        }
-                        const codigoTotp = pedirCodigoTotp();
-                        if (!codigoTotp) return;
-                        try {
-                          const fd = new FormData();
-                          fd.append('tipoDocumento', 'CONTRATO_PRESTACAO_SERVICO');
-                          fd.append('arquivo', f);
-                          fd.append('codigoTotp', codigoTotp);
-                          const res = await fetch(
-                            `${API_URL}/admin/usuarios/${u.idPublico}/documentos`,
-                            {
-                              method: 'POST',
-                              headers: { authorization: `Bearer ${token}` },
-                              body: fd,
-                            },
-                          );
-                          if (!res.ok) throw new Error(await res.text());
-                          void qc.invalidateQueries({
-                            queryKey: ['admin-docs', u.idPublico],
-                          });
-                        } catch (e) {
-                          onErro(e);
-                        }
-                      }}
-                    />
-                  </label>
+                  {/* Ativar SEM documentação: vale também para quem está
+                      PENDENTE (o cliente nunca enviou nada), que é justamente
+                      o caso em que o botão normal não aparece. Fica separado e
+                      em âmbar de propósito — é exceção de KYC, não pode ser
+                      clicado por engano no lugar da aprovação normal. */}
+                  {(u.situacao === 'EM_ANALISE' || u.situacao === 'PENDENTE') &&
+                    podeAprovar && (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const justificativa = window.prompt(
+                              'Ativar SEM a documentação completa.\n\n' +
+                                'Isto libera a conta para movimentar dinheiro sem o KYC concluído e fica registrado na auditoria.\n\n' +
+                                'Justifique (mín. 10 caracteres):',
+                            );
+                            if (!justificativa) return;
+                            if (justificativa.trim().length < 10) {
+                              setErro(
+                                'A justificativa precisa ter ao menos 10 caracteres.',
+                              );
+                              return;
+                            }
+                            const codigoTotp = pedirCodigoTotp(
+                              'Confirme a ativação SEM documentação com o código 2FA:',
+                            );
+                            if (!codigoTotp) return;
+                            ativarUsuario.mutate({
+                              id: u.idPublico,
+                              codigoTotp,
+                              semDocumentacao: true,
+                              justificativa: justificativa.trim(),
+                            });
+                          }}
+                          className="rounded-md border border-amber-500 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-500/10 dark:text-amber-400"
+                        >
+                          Ativar sem documentação
+                        </button>
+                      </div>
+                    )}
                   {u.situacao === 'EM_ANALISE' && podeAprovar && (
                     <div className="mt-3 flex gap-2">
                       <button
