@@ -1,13 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CATALOGO_ESCOPOS } from '@/lib/escopos';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import {
+  chavePixValida,
+  mascararChavePix,
+  metaCampoChavePix,
+  normalizarChavePixCadastro,
+  TIPOS_CHAVE_PIX,
+  type TipoChavePix,
+} from '@/lib/chave-pix';
+import { isCnpj, isCpf, mascaraCnpj, mascaraCpf, normalizarDocumento } from '@/lib/documento';
+import { CampoChavePix, CampoMoeda } from './campos';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
 import { QrPix } from './qr-pix';
@@ -177,19 +187,24 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
             Gere um QR Code PIX para adicionar saldo na sua conta. O crédito
             entra quando o pagamento é confirmado.
           </p>
-          <label className="block text-sm">
-            <TextoRotulo obrigatorio>Valor (R$)</TextoRotulo>
-            <input
-              className={inputCls}
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-              placeholder="100.00"
-              inputMode="decimal"
-              required
-            />
-          </label>
+          <CampoMoeda
+            label="Valor"
+            obrigatorio
+            valor={valor}
+            onChange={(v) => {
+              setValor(v);
+              setErro(null);
+            }}
+            className="!max-w-none"
+            dica="Digite só os números — a vírgula entra sozinha."
+          />
           {erro && <p className="text-sm text-red-600">{erro}</p>}
-          <ModalAcoes onCancelar={fechar} rotulo="Gerar cobrança" pendente={criar.isPending} />
+          <ModalAcoes
+            onCancelar={fechar}
+            rotulo="Gerar cobrança"
+            pendente={criar.isPending}
+            desabilitado={Number(valor) <= 0}
+          />
         </form>
       ) : pago ? (
         <div className="space-y-4 text-center">
@@ -257,6 +272,8 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
 }
 
 export function SaqueModal({ open, onClose, token }: ModalProps) {
+  const { pode } = useAuth();
+  const podeRemover = pode(PERMISSOES.CHAVES_PIX_EXCLUIR);
   const qc = useQueryClient();
   const [valor, setValor] = useState('');
   const [chaveSel, setChaveSel] = useState('');
@@ -265,15 +282,29 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
   const [novaChave, setNovaChave] = useState(false);
 
   // form de cadastro de chave
-  const [tipoChave, setTipoChave] = useState('CPF');
+  const [tipoChave, setTipoChave] = useState<TipoChavePix>('CPF');
   const [chave, setChave] = useState('');
   const [apelido, setApelido] = useState('');
   const [nomeTitular, setNomeTitular] = useState('');
+  const [documentoTitular, setDocumentoTitular] = useState('');
 
   const chaves = useQuery({
     queryKey: ['chaves-pix'],
     enabled: open,
     queryFn: () => api<ChavePix[]>('/painel/chaves-pix', { token }),
+  });
+  const chaveNormalizada = normalizarChavePixCadastro(tipoChave, chave);
+  const chavePronta = chavePixValida(tipoChave, chaveNormalizada);
+  const ocorrencias = useQuery({
+    queryKey: ['chaves-pix-ocorrencias', tipoChave, chaveNormalizada],
+    enabled: open && novaChave && chavePronta,
+    queryFn: () =>
+      api<{
+        outrasContas: Array<{ idPublico: string; nome: string; situacao: string }>;
+      }>(
+        `/painel/chaves-pix/ocorrencias?tipoChave=${encodeURIComponent(tipoChave)}&chave=${encodeURIComponent(chaveNormalizada)}`,
+        { token },
+      ),
   });
   const aprovadas = (chaves.data ?? []).filter((c) => c.situacao === 'APROVADA');
   const pendentesOuReprovadas = (chaves.data ?? []).filter(
@@ -306,9 +337,13 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
         method: 'POST',
         body: JSON.stringify({
           apelido: apelido || undefined,
-          chave,
+          chave: normalizarChavePixCadastro(tipoChave, chave),
           tipoChave,
-          nomeTitular: nomeTitular || undefined,
+          nomeTitular: nomeTitular.trim(),
+          documentoTitular:
+            tipoChave === 'CPF' || tipoChave === 'CNPJ'
+              ? normalizarChavePixCadastro(tipoChave, chave)
+              : normalizarDocumento(documentoTitular),
           codigoTotp,
         }),
       }),
@@ -317,11 +352,35 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
       setChave('');
       setApelido('');
       setNomeTitular('');
+      setDocumentoTitular('');
       setErro(null);
       void qc.invalidateQueries({ queryKey: ['chaves-pix'] });
     },
     onError: (e) => setErro(mensagemErro(e)),
   });
+
+  const remover = useMutation({
+    mutationFn: (p: { id: string; codigoTotp: string }) =>
+      api(`/painel/chaves-pix/${p.id}`, {
+        token,
+        method: 'DELETE',
+        body: JSON.stringify({ codigoTotp: p.codigoTotp }),
+      }),
+    onSuccess: (_r, p) => {
+      setErro(null);
+      if (chaveSel === p.id) setChaveSel('');
+      void qc.invalidateQueries({ queryKey: ['chaves-pix'] });
+    },
+    onError: (e) => setErro(mensagemErro(e)),
+  });
+
+  async function pedirRemocao(id: string) {
+    const codigoTotp = await pedirCodigoTotp(
+      'Confirme a remoção da chave PIX com o código 2FA. Ela vai para Revogadas.',
+    );
+    if (!codigoTotp) return;
+    remover.mutate({ id, codigoTotp });
+  }
 
   function fechar() {
     setErro(null);
@@ -365,44 +424,99 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
                   <option value="">Selecione</option>
                   {aprovadas.map((c) => (
                     <option key={c.idPublico} value={c.idPublico}>
-                      {(c.apelido ? `${c.apelido} — ` : '') + c.chave} ({c.tipoChave})
+                      {(c.apelido ? `${c.apelido} — ` : '') +
+                        mascararChavePix(c.tipoChave, c.chave)}{' '}
+                      ({c.tipoChave})
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="block text-sm">
-                <TextoRotulo obrigatorio>Valor (R$)</TextoRotulo>
-                <input
-                  className={inputCls}
-                  value={valor}
-                  onChange={(e) => setValor(e.target.value)}
-                  placeholder="50.00"
-                  inputMode="decimal"
-                  required
-                />
-              </label>
-              {erro && <p className="text-sm text-red-600">{erro}</p>}
-              <ModalAcoes onCancelar={fechar} rotulo="Solicitar saque" pendente={sacar.isPending} />
+              {podeRemover && chaveSel && (
+                <button
+                  type="button"
+                  disabled={remover.isPending}
+                  onClick={() => pedirRemocao(chaveSel)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-red-600 transition hover:underline disabled:opacity-50 dark:text-red-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                  Remover chave selecionada
+                </button>
+              )}
+              <CampoMoeda
+                label="Valor"
+                obrigatorio
+                valor={valor}
+                onChange={(v) => {
+                  setValor(v);
+                  setErro(null);
+                }}
+                className="!max-w-none"
+                dica="Digite só os números — a vírgula entra sozinha."
+              />
+              {erro && !novaChave && (
+                <p className="text-sm text-red-600">{erro}</p>
+              )}
+              <ModalAcoes
+                onCancelar={fechar}
+                rotulo="Solicitar saque"
+                pendente={sacar.isPending || remover.isPending}
+                desabilitado={Number(valor) <= 0}
+              />
             </form>
           ) : (
-            <div className="rounded-md border border-dashed border-ink-800/20 p-3 text-sm opacity-80 dark:border-white/20">
-              Nenhuma chave PIX aprovada. Cadastre uma chave — o saque libera após a
-              aprovação do administrador.
+            <div className="flex gap-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] p-3.5 dark:border-amber-400/20 dark:bg-amber-400/[0.08]">
+              <KeyRound
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                  Nenhuma chave aprovada
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-amber-900/70 dark:text-amber-200/70">
+                  Cadastre uma chave PIX. O saque libera depois que o
+                  administrador aprovar.
+                </p>
+              </div>
             </div>
           )}
 
           {pendentesOuReprovadas.length > 0 && (
-            <ul className="space-y-1.5 text-xs">
+            <ul className="space-y-2">
               {pendentesOuReprovadas.map((c) => (
-                <li key={c.idPublico}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate">{c.chave}</span>
-                    <span className="shrink-0 opacity-60">{c.situacao}</span>
+                <li
+                  key={c.idPublico}
+                  className="rounded-xl border border-ink-800/10 bg-ink-800/[0.03] p-3 dark:border-white/10 dark:bg-white/[0.03]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-sm tabular-nums">
+                        {mascararChavePix(c.tipoChave, c.chave)}
+                      </p>
+                      <p className="mt-0.5 text-[11px] opacity-55">
+                        {c.apelido ? `${c.apelido} · ` : ''}
+                        {c.tipoChave}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <BadgeSituacao situacao={c.situacao} />
+                      {podeRemover &&
+                        (c.situacao === 'PENDENTE' ||
+                          c.situacao === 'REPROVADA') && (
+                        <button
+                          type="button"
+                          disabled={remover.isPending}
+                          onClick={() => pedirRemocao(c.idPublico)}
+                          className="text-[11px] font-medium text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {/* Chave reprovada ou desativada pelo admin: sem o motivo aqui,
-                      o cliente só veria o status e abriria chamado para perguntar. */}
                   {c.motivoReprovacao && (
-                    <p className="mt-0.5 text-[11px] text-red-600 dark:text-red-400">
+                    <p className="mt-2 text-[11px] leading-relaxed text-red-600 dark:text-red-400">
                       {c.motivoReprovacao}
                     </p>
                   )}
@@ -414,22 +528,35 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
           {!novaChave ? (
             <button
               type="button"
-              className="text-sm text-accent underline"
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-ink-800/20 px-3 py-2.5 text-sm font-medium text-accent transition hover:border-accent/40 hover:bg-accent/[0.06] dark:border-white/15"
               onClick={() => setNovaChave(true)}
             >
-              + Cadastrar chave PIX
+              <Plus className="h-4 w-4" strokeWidth={2.25} aria-hidden />
+              Cadastrar chave PIX
             </button>
           ) : (
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (nomeTitular.trim().length < 2) {
+                  setErro('Informe o nome do titular da chave.');
+                  return;
+                }
+                const doc =
+                  tipoChave === 'CPF' || tipoChave === 'CNPJ'
+                    ? normalizarChavePixCadastro(tipoChave, chave)
+                    : normalizarDocumento(documentoTitular);
+                if (!isCpf(doc) && !isCnpj(doc)) {
+                  setErro('Informe o CPF ou CNPJ do titular da chave.');
+                  return;
+                }
                 const codigoTotp = await pedirCodigoTotp(
                   'Confirme o cadastro da chave PIX com o código 2FA (6 dígitos):',
                 );
                 if (!codigoTotp) return;
                 registrar.mutate(codigoTotp);
               }}
-              className="space-y-3 rounded-md border border-ink-800/10 p-3 dark:border-white/10"
+              className="space-y-3 rounded-xl border border-ink-800/10 p-3.5 dark:border-white/10"
             >
               <p className="text-sm font-medium">Nova chave PIX</p>
               <label className="block text-sm">
@@ -437,9 +564,13 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
                 <select
                   className={inputCls}
                   value={tipoChave}
-                  onChange={(e) => setTipoChave(e.target.value)}
+                  onChange={(e) => {
+                    setTipoChave(e.target.value as TipoChavePix);
+                    setChave('');
+                    setDocumentoTitular('');
+                  }}
                 >
-                  {['CPF', 'CNPJ', 'EMAIL', 'TELEFONE', 'ALEATORIA'].map((t) => (
+                  {TIPOS_CHAVE_PIX.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -448,13 +579,40 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
               </label>
               <label className="block text-sm">
                 <TextoRotulo obrigatorio>Chave</TextoRotulo>
-                <input
+                <CampoChavePix
+                  tipo={tipoChave}
+                  valor={chave}
+                  onChange={setChave}
                   className={inputCls}
-                  value={chave}
-                  onChange={(e) => setChave(e.target.value)}
                   required
                 />
+                <span className="mt-1 block text-[11px] opacity-55">
+                  {metaCampoChavePix(tipoChave).dica}
+                </span>
               </label>
+              {ocorrencias.data && ocorrencias.data.outrasContas.length > 0 && (
+                <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                  <AlertTriangle
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                    strokeWidth={2}
+                    aria-hidden
+                  />
+                  <div>
+                    <p className="font-medium">
+                      Esta chave já está em outra
+                      {ocorrencias.data.outrasContas.length > 1 ? 's contas' : ' conta'}{' '}
+                      sua
+                    </p>
+                    <ul className="mt-1 space-y-0.5 opacity-80">
+                      {ocorrencias.data.outrasContas.map((o) => (
+                        <li key={o.idPublico}>
+                          {o.nome} · {o.situacao === 'APROVADA' ? 'aprovada' : 'em análise'}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
               <label className="block text-sm">
                 Apelido (opcional)
                 <input
@@ -464,12 +622,44 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
                 />
               </label>
               <label className="block text-sm">
-                Nome do titular (opcional)
+                <TextoRotulo obrigatorio>Nome do titular</TextoRotulo>
                 <input
                   className={inputCls}
                   value={nomeTitular}
                   onChange={(e) => setNomeTitular(e.target.value)}
+                  required
+                  minLength={2}
+                  placeholder="Como está no banco"
                 />
+              </label>
+              <label className="block text-sm">
+                <TextoRotulo obrigatorio>Documento do titular</TextoRotulo>
+                <input
+                  className={inputCls}
+                  value={
+                    tipoChave === 'CPF' || tipoChave === 'CNPJ'
+                      ? mascararChavePix(tipoChave, chave)
+                      : documentoTitular
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const n = normalizarDocumento(v);
+                    setDocumentoTitular(
+                      n.length <= 11 ? mascaraCpf(v) : mascaraCnpj(v),
+                    );
+                  }}
+                  required
+                  disabled={tipoChave === 'CPF' || tipoChave === 'CNPJ'}
+                  inputMode={tipoChave === 'CNPJ' ? 'text' : 'numeric'}
+                  placeholder={
+                    tipoChave === 'CNPJ' ? '00.000.000/0000-00' : '000.000.000-00'
+                  }
+                />
+                <span className="mt-1 block text-[11px] opacity-55">
+                  {tipoChave === 'CPF' || tipoChave === 'CNPJ'
+                    ? 'É a própria chave — a liquidante confere no DICT.'
+                    : 'CPF ou CNPJ do dono da chave. A liquidante confere no DICT.'}
+                </span>
               </label>
               {erro && <p className="text-sm text-red-600">{erro}</p>}
               <ModalAcoes

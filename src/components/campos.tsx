@@ -4,6 +4,11 @@ import { ReactNode, useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Ajuda } from '@/components/ajuda';
 import { Obrigatorio } from '@/components/obrigatorio';
+import {
+  mascararChavePix,
+  metaCampoChavePix,
+  type TipoChavePix,
+} from '@/lib/chave-pix';
 
 /**
  * Campos de formulário do painel — moeda, percentual, select e chaves.
@@ -138,6 +143,7 @@ export function CampoMoeda({
   label,
   dica,
   ajuda,
+  obrigatorio,
   valor,
   onChange,
   disabled,
@@ -146,6 +152,7 @@ export function CampoMoeda({
   label: string;
   dica?: string;
   ajuda?: string;
+  obrigatorio?: boolean;
   valor: string;
   onChange: (decimal: string) => void;
   disabled?: boolean;
@@ -166,7 +173,9 @@ export function CampoMoeda({
 
   return (
     <label className={`block ${LARGURA_CAMPO} ${className}`}>
-      <Rotulo ajuda={ajuda}>{label}</Rotulo>
+      <Rotulo ajuda={ajuda} obrigatorio={obrigatorio}>
+        {label}
+      </Rotulo>
       <span className="relative mt-1.5 block">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm opacity-50">
           R$
@@ -190,7 +199,10 @@ export function CampoMoeda({
   );
 }
 
-/** Percentual: aceita vírgula na digitação e devolve com ponto. */
+/**
+ * Percentual no mesmo padrão do dinheiro: só dígitos, vírgula entra sozinha.
+ * Devolve decimal com ponto (`1.50`) para a API.
+ */
 export function CampoPercentual({
   label,
   dica,
@@ -208,18 +220,33 @@ export function CampoPercentual({
   disabled?: boolean;
   className?: string;
 }) {
+  const [centavos, setCentavos] = useState(() => paraCentavos(valor));
+
+  useEffect(() => {
+    setCentavos((atual) =>
+      paraCentavos(valor) !== atual &&
+      document.activeElement?.getAttribute('data-percentual') !== label
+        ? paraCentavos(valor)
+        : atual,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
+
   return (
     <label className={`block ${LARGURA_CAMPO} ${className}`}>
       <Rotulo ajuda={ajuda}>{label}</Rotulo>
       <span className="relative mt-1.5 block">
         <input
+          data-percentual={label}
           className={`${controleBase} ${ALTURA} pl-3 pr-8 text-right tabular-nums`}
-          value={valor.replace('.', ',')}
+          value={formatarCentavos(centavos)}
           onChange={(e) => {
-            const limpo = e.target.value.replace(/[^\d,]/g, '').replace(',', '.');
-            onChange(limpo);
+            const digitos = e.target.value.replace(/\D/g, '').slice(0, 8);
+            const novo = digitos ? Number(digitos) : 0;
+            setCentavos(novo);
+            onChange((novo / 100).toFixed(2));
           }}
-          inputMode="decimal"
+          inputMode="numeric"
           disabled={disabled}
         />
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm opacity-50">
@@ -389,5 +416,41 @@ export function Interruptor({
         />
       </button>
     </div>
+  );
+}
+
+/**
+ * Chave PIX com máscara do tipo (CPF/CNPJ/telefone já existentes; e-mail e
+ * UUID só restringem o que entra). Quem muda o tipo precisa LIMPAR o valor.
+ */
+export function CampoChavePix({
+  tipo,
+  valor,
+  onChange,
+  className = '',
+  required,
+}: {
+  tipo: TipoChavePix | string;
+  valor: string;
+  onChange: (exibicao: string) => void;
+  className?: string;
+  required?: boolean;
+}) {
+  const meta = metaCampoChavePix(tipo);
+  return (
+    <input
+      className={className}
+      value={valor}
+      onChange={(e) => onChange(mascararChavePix(tipo, e.target.value))}
+      type={meta.inputType}
+      inputMode={meta.inputMode}
+      autoComplete="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      placeholder={meta.placeholder}
+      maxLength={meta.maxLength}
+      required={required}
+      aria-label="Chave PIX"
+    />
   );
 }

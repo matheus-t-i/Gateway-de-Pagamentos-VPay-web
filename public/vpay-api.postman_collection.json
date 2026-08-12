@@ -87,7 +87,7 @@
           { "key": "Content-Type", "value": "application/json" }
         ],
         "url": { "raw": "{{baseUrl}}/v1/pix/cobrancas", "host": ["{{baseUrl}}"], "path": ["v1", "pix", "cobrancas"] },
-        "description": "Exige a permissão `pix.cobranca.criar`.\n\nAutenticação: Bearer herdado da coleção — rode \"Gerar token de acesso\" antes.\n\nOBRIGATÓRIOS: valor, pagador (nome, documento, email) e itens.\nO documento aceita CPF (11 dígitos) ou CNPJ (14 posições, inclusive alfanumérico), com ou sem máscara — identificamos o tipo pelo tamanho.\npagador.endereco vira obrigatório se algum item tiver tangivel: true.\n\nIDEMPOTÊNCIA: a referenciaExterna é o id do pedido do SEU sistema. Repetir a mesma referência com os mesmos dados devolve a MESMA cobrança (retentativa segura); com qualquer dado diferente, uma cobrança NOVA é gerada — cobrança nunca responde 409 pela referência.",
+        "description": "Exige a permissão `pix.cobranca.criar`.\n\nAutenticação: Bearer herdado da coleção — rode \"Gerar token de acesso\" antes.\n\nOBRIGATÓRIOS: valor, pagador (nome, documento, email, telefone) e itens.\nO documento aceita CPF (11 dígitos) ou CNPJ (14 posições, inclusive alfanumérico), com ou sem máscara — identificamos o tipo pelo tamanho.\nTelefone com DDD (10 ou 11 dígitos); aceita máscara.\npagador.endereco vira obrigatório se algum item tiver tangivel: true.\n\nIDEMPOTÊNCIA: a referenciaExterna é o id do pedido do SEU sistema. Repetir a mesma referência com os mesmos dados devolve a MESMA cobrança (retentativa segura); com qualquer dado diferente, uma cobrança NOVA é gerada — cobrança nunca responde 409 pela referência.",
         "body": {
           "mode": "raw",
           "options": { "raw": { "language": "json" } },
@@ -107,7 +107,7 @@
         "body": {
           "mode": "raw",
           "options": { "raw": { "language": "json" } },
-          "raw": "{\n  \"valor\": \"1200.00\",\n  \"referenciaExterna\": \"pedido-pj-{{$timestamp}}\",\n  \"pagador\": {\n    \"nome\": \"Empresa Compradora LTDA\",\n    \"documento\": \"11.222.333/0001-81\",\n    \"email\": \"financeiro@empresa.com.br\"\n  },\n  \"itens\": [\n    { \"titulo\": \"Licença anual\", \"quantidade\": 1, \"valorUnitario\": 1200.00, \"tangivel\": false }\n  ]\n}"
+          "raw": "{\n  \"valor\": \"1200.00\",\n  \"referenciaExterna\": \"pedido-pj-{{$timestamp}}\",\n  \"pagador\": {\n    \"nome\": \"Empresa Compradora LTDA\",\n    \"documento\": \"11.222.333/0001-81\",\n    \"email\": \"financeiro@empresa.com.br\",\n    \"telefone\": \"1133334444\"\n  },\n  \"itens\": [\n    { \"titulo\": \"Licença anual\", \"quantidade\": 1, \"valorUnitario\": 1200.00, \"tangivel\": false }\n  ]\n}"
         }
       }
     },

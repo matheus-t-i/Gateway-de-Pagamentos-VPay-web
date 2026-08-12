@@ -18,6 +18,7 @@ import {
   NovaAdquirenteModal,
 } from '@/components/adquirente-modais';
 import { TextoRotulo } from '@/components/obrigatorio';
+import { BadgeSituacao, rotuloSituacao } from '@/components/status';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
@@ -122,10 +123,23 @@ export default function AdquirentesPage() {
     {
       chave: 'pix',
       titulo: 'PIX',
-      render: (a) =>
-        [a.permitePixEntrada && 'Entrada', a.permitePixSaida && 'Saída']
-          .filter(Boolean)
-          .join(' · ') || '—',
+      render: (a) => (
+        <div className="flex flex-wrap gap-1">
+          {a.permitePixEntrada ? (
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-300">
+              In
+            </span>
+          ) : null}
+          {a.permitePixSaida ? (
+            <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-700 ring-1 ring-rose-500/20 dark:text-rose-300">
+              Out
+            </span>
+          ) : null}
+          {!a.permitePixEntrada && !a.permitePixSaida ? (
+            <span className="opacity-40">—</span>
+          ) : null}
+        </div>
+      ),
     },
     {
       chave: 'vitrine',
@@ -144,19 +158,7 @@ export default function AdquirentesPage() {
     {
       chave: 'situacao',
       titulo: 'Situação',
-      render: (a) => (
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            a.situacao === 'ATIVO'
-              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-              : a.situacao === 'SUSPENSO'
-                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
-          }`}
-        >
-          {a.situacao}
-        </span>
-      ),
+      render: (a) => <BadgeSituacao situacao={a.situacao} />,
     },
     {
       chave: 'editar',
@@ -227,7 +229,7 @@ export default function AdquirentesPage() {
             <option value="">Todas</option>
             {SITUACOES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {rotuloSituacao(s)}
               </option>
             ))}
           </FiltroSelect>

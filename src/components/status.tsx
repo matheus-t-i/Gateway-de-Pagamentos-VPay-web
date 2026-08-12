@@ -34,7 +34,21 @@ const BADGE_SITUACAO: Record<string, string> = {
   ATIVO:
     'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/20',
   INATIVO:
-    'bg-ink-800/5 text-ink-800/60 ring-ink-800/10 dark:bg-white/5 dark:text-white/60 dark:ring-white/10',
+    'bg-rose-500/10 text-rose-700 ring-rose-500/25 dark:bg-rose-400/10 dark:text-rose-300 dark:ring-rose-400/20',
+  SUSPENSO:
+    'bg-amber-500/10 text-amber-700 ring-amber-500/25 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/20',
+  // Chave PIX e fila de cadastro — o lojista vê o mesmo badge no saque e o
+  // admin na fila. Sem isso, PENDENTE/APROVADA viravam texto cinza solto.
+  APROVADA:
+    'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/20',
+  REPROVADA:
+    'bg-red-500/10 text-red-700 ring-red-500/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/20',
+  REVOGADA:
+    'bg-red-500/10 text-red-700 ring-red-500/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/20',
+  INATIVA:
+    'bg-red-500/10 text-red-700 ring-red-500/20 dark:bg-red-400/10 dark:text-red-300 dark:ring-red-400/20',
+  EM_ANALISE:
+    'bg-amber-500/10 text-amber-700 ring-amber-500/25 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/20',
 };
 
 /**
@@ -55,23 +69,75 @@ const ROTULO_SITUACAO: Record<string, string> = {
   SUCESSO: 'Sucesso',
   ATIVO: 'Ativo',
   INATIVO: 'Inativo',
+  SUSPENSO: 'Suspenso',
+  APROVADA: 'Aprovada',
+  REPROVADA: 'Reprovada',
+  REVOGADA: 'Revogada',
+  INATIVA: 'Inativa',
+  EM_ANALISE: 'Em análise',
 };
 
 export function rotuloSituacao(situacao: string) {
   return ROTULO_SITUACAO[situacao] ?? situacao.replaceAll('_', ' ');
 }
 
+const BADGE_FALLBACK =
+  'bg-ink-800/5 ring-ink-800/10 dark:bg-white/5 dark:ring-white/10';
+
+export function classeBadgeSituacao(situacao: string) {
+  return BADGE_SITUACAO[situacao] ?? BADGE_FALLBACK;
+}
+
 export function BadgeSituacao({ situacao }: { situacao: string }) {
   return (
     <span
       title={situacao}
-      className={`inline-flex whitespace-nowrap items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${
-        BADGE_SITUACAO[situacao] ??
-        'bg-ink-800/5 ring-ink-800/10 dark:bg-white/5 dark:ring-white/10'
-      }`}
+      className={`inline-flex whitespace-nowrap items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${classeBadgeSituacao(situacao)}`}
     >
       {rotuloSituacao(situacao)}
     </span>
+  );
+}
+
+/**
+ * Situação como escolha visual — o `<select>` nativo não pinta a opção.
+ * As cores vêm da mesma paleta do badge, para ATIVO/INATIVO/SUSPENSO
+ * (e qualquer outro enum) não mudarem de significado entre listagem e edição.
+ */
+export function SeletorSituacao({
+  value,
+  onChange,
+  opcoes,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  opcoes: readonly string[];
+  disabled?: boolean;
+}) {
+  return (
+    <div role="radiogroup" className="grid grid-cols-3 gap-1.5">
+      {opcoes.map((s) => {
+        const ativo = value === s;
+        return (
+          <button
+            key={s}
+            type="button"
+            role="radio"
+            aria-checked={ativo}
+            disabled={disabled}
+            onClick={() => onChange(s)}
+            className={`rounded-xl px-2 py-2 text-center text-xs font-semibold ring-1 transition disabled:opacity-40 ${
+              ativo
+                ? classeBadgeSituacao(s)
+                : 'bg-ink-800/[0.03] text-ink-800/45 ring-ink-800/10 hover:bg-ink-800/[0.06] dark:bg-white/[0.03] dark:text-white/40 dark:ring-white/10 dark:hover:bg-white/[0.06]'
+            }`}
+          >
+            {rotuloSituacao(s)}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

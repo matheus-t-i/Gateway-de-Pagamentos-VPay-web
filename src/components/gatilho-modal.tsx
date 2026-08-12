@@ -4,6 +4,14 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
+import {
+  mascararChavePix,
+  metaCampoChavePix,
+  normalizarChavePixCadastro,
+  TIPOS_CHAVE_PIX,
+  type TipoChavePix,
+} from '@/lib/chave-pix';
+import { CampoChavePix } from './campos';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
 
@@ -23,7 +31,7 @@ function erroMsg(e: unknown) {
   return m;
 }
 
-export const TIPOS_CHAVE = ['CPF', 'CNPJ', 'EMAIL', 'TELEFONE', 'ALEATORIA'] as const;
+export const TIPOS_CHAVE = TIPOS_CHAVE_PIX;
 
 export type Gatilho = {
   id: string;
@@ -129,7 +137,7 @@ export function GatilhoModal({
             valorReserva: gatilho.valorReserva,
             valorMinimoPayout: gatilho.valorMinimoPayout,
             valorMaximoPayout: gatilho.valorMaximoPayout ?? '',
-            chavePix: gatilho.chavePix,
+            chavePix: mascararChavePix(gatilho.tipoChavePix, gatilho.chavePix),
             tipoChavePix: gatilho.tipoChavePix,
             nomeTitular: gatilho.nomeTitular ?? '',
             documentoTitular: gatilho.documentoTitular ?? '',
@@ -152,6 +160,7 @@ export function GatilhoModal({
         valorMinimoPayout: Number(form.valorMinimoPayout || 0),
         valorMaximoPayout: form.valorMaximoPayout === '' ? null : Number(form.valorMaximoPayout),
         intervaloMinimoMinutos: Number(form.intervaloMinimoMinutos || 0),
+        chavePix: normalizarChavePixCadastro(form.tipoChavePix, form.chavePix),
         codigoTotp,
       };
       await api(
@@ -268,7 +277,13 @@ export function GatilhoModal({
             <select
               className={campo}
               value={form.tipoChavePix}
-              onChange={(e) => set('tipoChavePix', e.target.value)}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  tipoChavePix: e.target.value as TipoChavePix,
+                  chavePix: '',
+                }))
+              }
             >
               {TIPOS_CHAVE.map((t) => (
                 <option key={t} value={t}>
@@ -279,12 +294,16 @@ export function GatilhoModal({
           </label>
           <label className={rotulo}>
             <TextoRotulo obrigatorio>Chave PIX de destino</TextoRotulo>
-            <input
+            <CampoChavePix
+              tipo={form.tipoChavePix}
+              valor={form.chavePix}
+              onChange={(v) => set('chavePix', v)}
               className={campo}
-              value={form.chavePix}
-              onChange={(e) => set('chavePix', e.target.value)}
               required
             />
+            <span className="mt-1 block text-[11px] font-normal opacity-55">
+              {metaCampoChavePix(form.tipoChavePix).dica}
+            </span>
           </label>
           <label className={rotulo}>
             Titular (opcional)

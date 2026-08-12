@@ -196,8 +196,6 @@ function Perfil() {
     { rotulo: 'Nome', valor: usuario?.nomeRazaoSocial },
     { rotulo: 'E-mail', valor: usuario?.email },
     { rotulo: 'Documento', valor: usuario?.cpfCnpj },
-    { rotulo: 'Telefone', valor: usuario?.telefone },
-    { rotulo: 'Perfil de acesso', valor: usuario?.papeis.join(', ') },
   ].filter((l) => l.valor);
 
   return (

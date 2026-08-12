@@ -1,15 +1,24 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Banknote,
+  Shield,
+  Store,
+  X,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { pedirTexto } from '@/lib/dialogos';
+import { CampoMoeda, CampoPercentual, controleBase } from './campos';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
+import { SeletorSituacao } from './status';
 
-const campo =
-  'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900';
+const campo = `mt-1 ${controleBase} px-3 py-2`;
 
 function erroMsg(e: unknown) {
   let m = e instanceof Error ? e.message : 'Falha';
@@ -65,15 +74,13 @@ function CampoIpsWebhook({
     setNovo('');
   };
   return (
-    <fieldset className="space-y-2 rounded-md border border-ink-800/10 p-3 dark:border-white/10">
-      <legend className="px-1 text-sm font-medium">IPs de webhook da liquidante</legend>
-      <p className="text-xs opacity-60">
-        Somente estes IPs/faixas podem entregar webhook desta adquirente
-        (Camada 2). Aceita CIDR, inclusive IPv6 — ex.: 187.10.0.5,
-        187.10.0.0/24, 2804:14c::/64. Lista vazia desliga a checagem de IP.
+    <div className="space-y-2">
+      <p className="text-[11px] leading-relaxed opacity-55">
+        Só estes IPs/faixas entregam webhook (Camada 2). Aceita CIDR e IPv6.
+        Lista vazia desliga a checagem.
       </p>
       <div className="flex items-end gap-2">
-        <label className="block flex-1 text-xs">
+        <label className="block min-w-0 flex-1 text-xs">
           IP ou faixa (CIDR)
           <input
             className={campo}
@@ -92,32 +99,98 @@ function CampoIpsWebhook({
           type="button"
           onClick={adicionar}
           disabled={!novo.trim()}
-          className="rounded-md border border-ink-800/15 px-3 py-2 text-xs font-medium hover:bg-ink-800/5 disabled:opacity-50 dark:border-white/15 dark:hover:bg-white/5"
+          className="h-9 shrink-0 rounded-lg bg-accent px-3 text-xs font-semibold text-accent-foreground disabled:opacity-40"
         >
           Adicionar
         </button>
       </div>
-      {ips.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
+      {ips.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5">
           {ips.map((ip) => (
             <li
               key={ip}
-              className="flex items-center gap-2 rounded-full border border-ink-800/15 px-3 py-1 font-mono text-xs dark:border-white/15"
+              className="inline-flex items-center gap-1.5 rounded-full bg-ink-800/[0.06] py-1 pl-2.5 pr-1 font-mono text-[11px] dark:bg-white/[0.06]"
             >
               {ip}
               <button
                 type="button"
                 aria-label={`Remover ${ip}`}
                 onClick={() => onChange(ips.filter((i) => i !== ip))}
-                className="font-sans font-semibold text-red-600 hover:opacity-70"
+                className="rounded-full p-0.5 text-rose-600 hover:bg-rose-500/10 dark:text-rose-400"
               >
-                ×
+                <X className="h-3 w-3" strokeWidth={2.5} />
               </button>
             </li>
           ))}
         </ul>
+      ) : (
+        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+          Nenhum IP — a checagem de origem está desligada.
+        </p>
       )}
-    </fieldset>
+    </div>
+  );
+}
+
+function Bloco({
+  icone,
+  titulo,
+  descricao,
+  children,
+}: {
+  icone: ReactNode;
+  titulo: string;
+  descricao?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-3 rounded-xl border border-ink-800/10 bg-ink-800/[0.02] p-3.5 dark:border-white/10 dark:bg-white/[0.02]">
+      <header className="flex items-start gap-2.5">
+        <span className="mt-0.5 text-accent">{icone}</span>
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold">{titulo}</h4>
+          {descricao ? (
+            <p className="mt-0.5 text-[11px] leading-relaxed opacity-55">{descricao}</p>
+          ) : null}
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function Interruptor({
+  ligado,
+  onChange,
+  icone,
+  titulo,
+  dica,
+}: {
+  ligado: boolean;
+  onChange: (v: boolean) => void;
+  icone: ReactNode;
+  titulo: string;
+  dica: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!ligado)}
+      aria-pressed={ligado}
+      className={`flex flex-1 items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition ${
+        ligado
+          ? 'border-emerald-500/30 bg-emerald-500/10 dark:border-emerald-400/25 dark:bg-emerald-400/10'
+          : 'border-ink-800/10 bg-ink-800/[0.02] opacity-70 hover:opacity-100 dark:border-white/10 dark:bg-white/[0.02]'
+      }`}
+    >
+      <span className={ligado ? 'text-emerald-600 dark:text-emerald-300' : 'opacity-50'}>
+        {icone}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xs font-semibold">{titulo}</span>
+        <span className="mt-0.5 block text-[11px] opacity-60">{dica}</span>
+      </span>
+    </button>
   );
 }
 
@@ -371,38 +444,61 @@ export function EditarAdquirenteModal({
           }}
           className="space-y-4"
         >
-          <label className="block text-sm">
-            <TextoRotulo obrigatorio>Nome interno</TextoRotulo>
-            <input className={campo} value={nome} onChange={(e) => setNome(e.target.value)} required />
-          </label>
-          <label className="block text-sm">
-            Situação
-            <select className={campo} value={situacao} onChange={(e) => setSituacao(e.target.value as Situacao)}>
-              {SITUACOES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={entrada} onChange={(e) => setEntrada(e.target.checked)} />
-              Permite cash-in
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <TextoRotulo obrigatorio>Nome interno</TextoRotulo>
+              <input
+                className={campo}
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required
+              />
             </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={saida} onChange={(e) => setSaida(e.target.checked)} />
-              Permite cash-out
-            </label>
+            <div>
+              <p className="text-xs font-medium opacity-70">Situação</p>
+              <div className="mt-1">
+                <SeletorSituacao
+                  value={situacao}
+                  onChange={(v) => setSituacao(v as Situacao)}
+                  opcoes={SITUACOES}
+                />
+              </div>
+              <p className="mt-1 text-[11px] opacity-45">
+                Inativa não atualiza transação nem saldo.
+              </p>
+            </div>
           </div>
 
-          <CampoIpsWebhook ips={ipsWebhook} onChange={setIpsWebhook} />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Interruptor
+              ligado={entrada}
+              onChange={setEntrada}
+              icone={<ArrowDownLeft className="h-4 w-4" strokeWidth={2} />}
+              titulo="Cash-in"
+              dica="Recebe PIX nesta adquirente"
+            />
+            <Interruptor
+              ligado={saida}
+              onChange={setSaida}
+              icone={<ArrowUpRight className="h-4 w-4" strokeWidth={2} />}
+              titulo="Cash-out"
+              dica="Envia saque por esta adquirente"
+            />
+          </div>
 
-          <fieldset className="space-y-3 rounded-md border border-ink-800/10 p-3 dark:border-white/10">
-            <legend className="px-1 text-sm font-medium">Vitrine do cliente</legend>
-            <p className="text-xs opacity-60">
-              O que o lojista vê na tela de Adquirentes ao escolher o PIX in.
-            </p>
+          <Bloco
+            icone={<Shield className="h-4 w-4" strokeWidth={2} />}
+            titulo="IPs de webhook da liquidante"
+            descricao="Camada 2: só estes endereços podem entregar o postback."
+          >
+            <CampoIpsWebhook ips={ipsWebhook} onChange={setIpsWebhook} />
+          </Bloco>
+
+          <Bloco
+            icone={<Store className="h-4 w-4" strokeWidth={2} />}
+            titulo="Vitrine do cliente"
+            descricao="O que o lojista vê em /adquirentes ao escolher o PIX in."
+          >
             <label className="block text-sm">
               Nome fantasia (exibido ao cliente)
               <input
@@ -413,13 +509,18 @@ export function EditarAdquirenteModal({
               />
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={temMed} onChange={(e) => setTemMed(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={temMed}
+                onChange={(e) => setTemMed(e.target.checked)}
+                className="rounded border-ink-800/20 text-accent focus:ring-accent/30"
+              />
               Tem MED
             </label>
             <label className="block text-sm">
               Observação ao cliente
               <textarea
-                className={campo}
+                className={`${campo} min-h-[4.5rem] resize-y`}
                 rows={3}
                 value={observacao}
                 onChange={(e) => setObservacao(e.target.value)}
@@ -437,36 +538,63 @@ export function EditarAdquirenteModal({
                 <option value="ESPECIFICOS">Somente clientes liberados</option>
               </select>
             </label>
-          </fieldset>
+          </Bloco>
 
           {contas.length === 0 && (
-            <p className="rounded-md border border-dashed border-ink-800/20 p-3 text-xs opacity-70 dark:border-white/20">
+            <p className="rounded-xl border border-dashed border-ink-800/15 px-3 py-3 text-xs opacity-60 dark:border-white/15">
               Nenhuma conta configurada para esta adquirente.
             </p>
           )}
           {contas.map((c, idx) => (
-            <div key={c.id} className="rounded-md border border-ink-800/10 p-3 dark:border-white/10">
-              <p className="text-sm font-medium">Custo — {c.nome}</p>
-              <p className="text-xs opacity-60">O que a adquirente cobra de nós.</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <label className="block text-xs">
-                  Cash-in %
-                  <input className={campo} value={c.custo.custoPixEntradaPercentual} onChange={(e) => setCusto(idx, 'custoPixEntradaPercentual', e.target.value)} inputMode="decimal" />
-                </label>
-                <label className="block text-xs">
-                  Cash-in fixo (R$)
-                  <input className={campo} value={c.custo.custoPixEntradaFixo} onChange={(e) => setCusto(idx, 'custoPixEntradaFixo', e.target.value)} inputMode="decimal" />
-                </label>
-                <label className="block text-xs">
-                  Cash-out %
-                  <input className={campo} value={c.custo.custoPixSaidaPercentual} onChange={(e) => setCusto(idx, 'custoPixSaidaPercentual', e.target.value)} inputMode="decimal" />
-                </label>
-                <label className="block text-xs">
-                  Cash-out fixo (R$)
-                  <input className={campo} value={c.custo.custoPixSaidaFixo} onChange={(e) => setCusto(idx, 'custoPixSaidaFixo', e.target.value)} inputMode="decimal" />
-                </label>
+            <Bloco
+              key={c.id}
+              icone={<Banknote className="h-4 w-4" strokeWidth={2} />}
+              titulo={`Custo — ${c.nome}`}
+              descricao="O que a adquirente cobra de nós (não é a taxa do lojista)."
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2 rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] p-2.5 dark:border-emerald-400/15">
+                  <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
+                    PIX in
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <CampoPercentual
+                      label="% in"
+                      valor={c.custo.custoPixEntradaPercentual}
+                      onChange={(v) =>
+                        setCusto(idx, 'custoPixEntradaPercentual', v)
+                      }
+                      className="!max-w-none"
+                    />
+                    <CampoMoeda
+                      label="Fixo in"
+                      valor={c.custo.custoPixEntradaFixo}
+                      onChange={(v) => setCusto(idx, 'custoPixEntradaFixo', v)}
+                      className="!max-w-none"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2 rounded-lg border border-rose-500/15 bg-rose-500/[0.04] p-2.5 dark:border-rose-400/15">
+                  <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-300">
+                    PIX out
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <CampoPercentual
+                      label="% out"
+                      valor={c.custo.custoPixSaidaPercentual}
+                      onChange={(v) => setCusto(idx, 'custoPixSaidaPercentual', v)}
+                      className="!max-w-none"
+                    />
+                    <CampoMoeda
+                      label="Fixo out"
+                      valor={c.custo.custoPixSaidaFixo}
+                      onChange={(v) => setCusto(idx, 'custoPixSaidaFixo', v)}
+                      className="!max-w-none"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            </Bloco>
           ))}
 
           {exigeSubstituicao && impacto.data && (

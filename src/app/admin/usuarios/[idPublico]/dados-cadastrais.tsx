@@ -167,7 +167,7 @@ export function FormularioDadosCadastrais({
           cpfCnpj,
           nomeRazaoSocial: nome,
           nomeFantasia: nomeFantasia.trim() || null,
-          telefone: telefone.replace(/\D/g, '') || null,
+          telefone: telefone.replace(/\D/g, ''),
           faturamentoMensalMedio:
             faturamento && Number(faturamento) > 0 ? faturamento : null,
           responsavel: pj
@@ -205,6 +205,10 @@ export function FormularioDadosCadastrais({
       onSubmit={async (e) => {
         e.preventDefault();
         if (travado) return;
+        if (telefone.replace(/\D/g, '').length < 10) {
+          setErro('Informe um telefone com DDD (10 ou 11 dígitos).');
+          return;
+        }
         const codigoTotp = await pedirCodigoTotp(
           'Confirme a correção cadastral com o código da sua conta admin:',
         );
@@ -275,7 +279,7 @@ export function FormularioDadosCadastrais({
             />
           </label>
           <label className="block min-w-0 sm:col-span-2 lg:col-span-3">
-            {rotulo('Telefone')}
+            {rotulo('Telefone', { obrigatorio: true })}
             <input
               className={campo}
               value={telefone}
@@ -283,6 +287,7 @@ export function FormularioDadosCadastrais({
               disabled={travado}
               inputMode="numeric"
               placeholder="(00) 00000-0000"
+              required
             />
           </label>
           <CampoMoeda

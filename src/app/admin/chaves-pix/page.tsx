@@ -1,15 +1,24 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, History } from 'lucide-react';
 import { Shell } from '@/components/shell';
-import { BarraFiltros, FiltroTexto, TabelaPaginada, type Coluna } from '@/components/tabela';
+import { BarraFiltros, FiltroSelect, FiltroTexto, TabelaPaginada, type Coluna } from '@/components/tabela';
 import { Modal, ModalAcoes } from '@/components/modal';
-import { IdadeSolicitacao } from '@/components/status';
+import { TextoRotulo } from '@/components/obrigatorio';
+import { BadgeSituacao, IdadeSolicitacao, rotuloSituacao } from '@/components/status';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatarDocumento } from '@/lib/documento';
+import { mascararChavePix } from '@/lib/chave-pix';
+import {
+  formatarDocumento,
+  isCnpj,
+  isCpf,
+  mascaraCnpj,
+  mascaraCpf,
+  normalizarDocumento,
+} from '@/lib/documento';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
@@ -28,6 +37,7 @@ type ChavePix = {
   chave: string;
   tipoChave: string;
   nomeTitular: string | null;
+  documentoTitular: string | null;
   situacao: string;
   motivoReprovacao: string | null;
   criadoEm: string;
@@ -35,8 +45,20 @@ type ChavePix = {
   /** A chave já passou por uma decisão antes: é reentrada na fila, não pedido novo. */
   recadastro: boolean;
   historico: Historico[];
+  /** Quem tirou a chave de circulação (admin vs cliente). */
+  revogacao: {
+    origem: string;
+    ator: string | null;
+    motivo: string | null;
+    em: string;
+  } | null;
   /** Mesma chave viva em OUTRAS contas (o cliente pode ter mais de uma empresa). */
-  outrasContas: Array<{ nome: string; cpfCnpj: string; situacao: string }>;
+  outrasContas: Array<{
+    idPublico: string;
+    nome: string;
+    cpfCnpj: string;
+    situacao: string;
+  }>;
 };
 
 /**
@@ -48,7 +70,7 @@ const FILTROS = [
   { chave: 'PENDENTE', label: 'Pendências' },
   { chave: 'APROVADA', label: 'Aprovadas' },
   { chave: 'REPROVADA', label: 'Reprovadas' },
-  { chave: 'REVOGADA', label: 'Revogadas' },
+  { chave: 'REVOGADA,INATIVA', label: 'Revogadas' },
 ] as const;
 
 const badge: Record<string, string> = {
@@ -147,6 +169,123 @@ function ModalJustificativa({
   );
 }
 
+const campoEdicao =
+  'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900';
+
+function ModalEditar({
+  chave,
+  onCancelar,
+  onSalvo,
+  pendente,
+  erro,
+}: {
+  chave: ChavePix | null;
+  onCancelar: () => void;
+  onSalvo: (dados: {
+    apelido: string | null;
+    nomeTitular: string;
+    documentoTitular: string;
+  }) => void;
+  pendente: boolean;
+  erro: string | null;
+}) {
+  const [apelido, setApelido] = useState('');
+  const [nomeTitular, setNomeTitular] = useState('');
+  const [documentoTitular, setDocumentoTitular] = useState('');
+  const chaveEhDocumento = chave?.tipoChave === 'CPF' || chave?.tipoChave === 'CNPJ';
+
+  useEffect(() => {
+    if (!chave) return;
+    setApelido(chave.apelido ?? '');
+    setNomeTitular(chave.nomeTitular ?? '');
+    setDocumentoTitular(
+      chaveEhDocumento
+        ? mascararChavePix(chave.tipoChave, chave.chave)
+        : chave.documentoTitular
+          ? formatarDocumento(chave.documentoTitular)
+          : '',
+    );
+  }, [chave, chaveEhDocumento]);
+
+  if (!chave) return null;
+
+  const doc = chaveEhDocumento
+    ? chave.chave
+    : normalizarDocumento(documentoTitular);
+  const valido = nomeTitular.trim().length >= 2 && (isCpf(doc) || isCnpj(doc));
+
+  return (
+    <Modal open onClose={onCancelar} title="Editar chave PIX">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!valido) return;
+          onSalvo({
+            apelido: apelido.trim() || null,
+            nomeTitular: nomeTitular.trim(),
+            documentoTitular: doc,
+          });
+        }}
+        className="space-y-4"
+      >
+        <div className="rounded-md border border-ink-800/10 p-3 text-sm dark:border-white/10">
+          <p className="font-medium">{chave.cliente.nome}</p>
+          <p className="font-mono text-xs opacity-70">
+            {mascararChavePix(chave.tipoChave, chave.chave)} · {chave.tipoChave}
+          </p>
+        </div>
+
+        <label className="block text-sm">
+          Apelido (opcional)
+          <input
+            className={campoEdicao}
+            value={apelido}
+            onChange={(e) => setApelido(e.target.value)}
+          />
+        </label>
+        <label className="block text-sm">
+          <TextoRotulo obrigatorio>Nome do titular</TextoRotulo>
+          <input
+            className={campoEdicao}
+            value={nomeTitular}
+            onChange={(e) => setNomeTitular(e.target.value)}
+            required
+            minLength={2}
+            placeholder="Como está no banco"
+          />
+        </label>
+        <label className="block text-sm">
+          <TextoRotulo obrigatorio>Documento do titular</TextoRotulo>
+          <input
+            className={campoEdicao}
+            value={
+              chaveEhDocumento
+                ? mascararChavePix(chave.tipoChave, chave.chave)
+                : documentoTitular
+            }
+            onChange={(e) => {
+              const v = e.target.value;
+              const n = normalizarDocumento(v);
+              setDocumentoTitular(n.length <= 11 ? mascaraCpf(v) : mascaraCnpj(v));
+            }}
+            required
+            disabled={chaveEhDocumento}
+            placeholder="000.000.000-00"
+          />
+          <span className="mt-1 block text-[11px] opacity-55">
+            {chaveEhDocumento
+              ? 'É a própria chave — a liquidante confere no DICT.'
+              : 'CPF ou CNPJ do dono da chave.'}
+          </span>
+        </label>
+
+        {erro && <p className="text-sm text-red-600">{erro}</p>}
+        <ModalAcoes onCancelar={onCancelar} rotulo="Salvar" pendente={pendente} desabilitado={!valido} />
+      </form>
+    </Modal>
+  );
+}
+
 /** Avisos que mudam a decisão do analista: reentrada na fila e chave repetida. */
 function AlertasDaChave({ c }: { c: ChavePix }) {
   const decisoesAnteriores = c.historico.filter(
@@ -165,6 +304,11 @@ function AlertasDaChave({ c }: { c: ChavePix }) {
           {decisoesAnteriores.slice(0, 2).map((h, i) => (
             <p key={i} className="mt-0.5 opacity-80">
               {new Date(h.criadoEm).toLocaleDateString('pt-BR')} · {h.novaSituacao}
+              {h.origem === 'ADMIN'
+                ? ' · administrador'
+                : h.origem === 'CLIENTE'
+                  ? ' · cliente'
+                  : ''}
               {h.motivo ? ` — ${h.motivo}` : ''}
               {h.ator ? ` (${h.ator})` : ''}
             </p>
@@ -175,14 +319,22 @@ function AlertasDaChave({ c }: { c: ChavePix }) {
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs">
           <p className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-300">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-            Mesma chave em {c.outrasContas.length} outra
-            {c.outrasContas.length > 1 ? 's contas' : ' conta'}
+            Mesma chave nas contas
           </p>
-          {c.outrasContas.map((o, i) => (
-            <p key={i} className="mt-0.5 opacity-80">
-              {o.nome} · {formatarDocumento(o.cpfCnpj)} · {o.situacao}
-            </p>
-          ))}
+          <ul className="mt-1 space-y-1">
+            {c.outrasContas.map((o) => (
+              <li key={o.idPublico} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 opacity-90">
+                <a
+                  href={`/admin/usuarios/${o.idPublico}`}
+                  className="font-medium underline-offset-2 hover:underline"
+                >
+                  {o.nome}
+                </a>
+                <span className="opacity-70">{formatarDocumento(o.cpfCnpj)}</span>
+                <BadgeSituacao situacao={o.situacao} />
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
@@ -194,27 +346,33 @@ export default function AdminChavesPixPage() {
   const podeAprovar = pode(PERMISSOES.ADMIN_CHAVES_PIX_APROVAR);
   const qc = useQueryClient();
   const [situacao, setSituacao] = useState<string>('PENDENTE');
+  const [compartilhada, setCompartilhada] = useState('');
   const [busca, setBusca] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [alvo, setAlvo] = useState<{ chave: ChavePix; acao: Acao } | null>(null);
+  const [editando, setEditando] = useState<ChavePix | null>(null);
 
   const chaves = useQuery({
-    queryKey: ['admin-chaves-pix', situacao],
+    queryKey: ['admin-chaves-pix', situacao, compartilhada],
     enabled: !!token,
-    queryFn: () =>
-      api<ChavePix[]>(`/admin/chaves-pix?situacao=${situacao}`, { token: token! }),
+    queryFn: () => {
+      const q = new URLSearchParams({ situacao });
+      if (compartilhada === '1') q.set('compartilhada', '1');
+      return api<ChavePix[]>(`/admin/chaves-pix?${q}`, { token: token! });
+    },
   });
 
   const aoDecidir = {
     onSuccess: () => {
       setErro(null);
       setAlvo(null);
+      setEditando(null);
       void qc.invalidateQueries({ queryKey: ['admin-chaves-pix'] });
       // Badge de pendências do menu lateral reflete a decisão na hora.
       void qc.invalidateQueries({ queryKey: ['admin-pendencias'] });
     },
     onError: (e: unknown) =>
-      setErro(e instanceof Error ? e.message : 'Falha na decisão'),
+      setErro(e instanceof Error ? e.message : 'Falha na operação'),
   };
 
   const decidir = useMutation({
@@ -230,6 +388,27 @@ export default function AdminChavesPixPage() {
         body: JSON.stringify({
           situacao: p.situacao,
           motivo: p.motivo,
+          codigoTotp: p.codigoTotp,
+        }),
+      }),
+    ...aoDecidir,
+  });
+
+  const editar = useMutation({
+    mutationFn: (p: {
+      id: string;
+      apelido: string | null;
+      nomeTitular: string;
+      documentoTitular: string;
+      codigoTotp: string;
+    }) =>
+      api(`/admin/chaves-pix/${p.id}`, {
+        token: token!,
+        method: 'PATCH',
+        body: JSON.stringify({
+          apelido: p.apelido,
+          nomeTitular: p.nomeTitular,
+          documentoTitular: p.documentoTitular,
           codigoTotp: p.codigoTotp,
         }),
       }),
@@ -297,8 +476,13 @@ export default function AdminChavesPixPage() {
         <div className="min-w-0">
           <p className="truncate font-mono text-sm">{c.chave}</p>
           {c.apelido && <p className="text-xs opacity-60">{c.apelido}</p>}
-          {c.nomeTitular && (
-            <p className="text-xs opacity-70">Titular: {c.nomeTitular}</p>
+          {(c.nomeTitular || c.documentoTitular) && (
+            <p className="text-xs opacity-70">
+              Titular: {c.nomeTitular ?? '—'}
+              {c.documentoTitular
+                ? ` · ${formatarDocumento(c.documentoTitular)}`
+                : ''}
+            </p>
           )}
         </div>
       ),
@@ -312,8 +496,15 @@ export default function AdminChavesPixPage() {
           <span
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge[c.situacao] ?? ''}`}
           >
-            {c.situacao}
+            {rotuloSituacao(c.situacao)}
           </span>
+          {c.revogacao && (
+            <p className="mt-1 max-w-[16rem] text-[11px] opacity-70">
+              {c.revogacao.origem === 'ADMIN'
+                ? `Revogada pelo administrador${c.revogacao.ator ? ` (${c.revogacao.ator})` : ''}`
+                : 'Removida pelo próprio cliente'}
+            </p>
+          )}
           {c.motivoReprovacao && (
             <p className="mt-1 max-w-[16rem] text-xs text-red-600 dark:text-red-400">
               {c.motivoReprovacao}
@@ -328,11 +519,25 @@ export default function AdminChavesPixPage() {
       className: 'text-right',
       render: (c) => {
         if (!podeAprovar) return <span className="text-xs opacity-40">—</span>;
-        const ocupado = decidir.isPending || revogar.isPending;
+        const ocupado = decidir.isPending || revogar.isPending || editar.isPending;
+        const btnEditar = (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => {
+              setErro(null);
+              setEditando(c);
+            }}
+            className="rounded border border-ink-800/20 px-3 py-1.5 text-xs font-medium transition hover:bg-ink-800/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/5"
+          >
+            Editar
+          </button>
+        );
 
         if (c.situacao === 'PENDENTE') {
           return (
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {btnEditar}
               <button
                 type="button"
                 disabled={ocupado}
@@ -365,14 +570,17 @@ export default function AdminChavesPixPage() {
         // de quem administra quando algo acontece com a conta ou com a chave.
         if (c.situacao === 'APROVADA') {
           return (
-            <button
-              type="button"
-              disabled={ocupado}
-              onClick={() => setAlvo({ chave: c, acao: 'REVOGADA' })}
-              className="rounded border border-red-500/60 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-500/10 disabled:opacity-60 dark:text-red-400"
-            >
-              Desativar
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {btnEditar}
+              <button
+                type="button"
+                disabled={ocupado}
+                onClick={() => setAlvo({ chave: c, acao: 'REVOGADA' })}
+                className="rounded border border-red-500/60 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-500/10 disabled:opacity-60 dark:text-red-400"
+              >
+                Desativar
+              </button>
+            </div>
           );
         }
         return <span className="text-xs opacity-40">—</span>;
@@ -415,6 +623,14 @@ export default function AdminChavesPixPage() {
             onChange={setBusca}
             placeholder="Chave ou razão social"
           />
+          <FiltroSelect
+            label="Ocorrências"
+            value={compartilhada}
+            onChange={setCompartilhada}
+          >
+            <option value="">Todas</option>
+            <option value="1">Mesma chave em várias contas</option>
+          </FiltroSelect>
         </BarraFiltros>
 
         <TabelaPaginada<ChavePix>
@@ -424,7 +640,11 @@ export default function AdminChavesPixPage() {
           carregando={chaves.isLoading}
           tamanhoPagina={10}
           seletorTamanho
-          vazio={`Nenhuma chave com situação ${situacao}.`}
+          vazio={
+            compartilhada === '1'
+              ? 'Nenhuma chave compartilhada entre contas nesta situação.'
+              : `Nenhuma chave em ${FILTROS.find((f) => f.chave === situacao)?.label ?? situacao}.`
+          }
         />
       </div>
 
@@ -433,6 +653,22 @@ export default function AdminChavesPixPage() {
         onCancelar={() => setAlvo(null)}
         onConfirmar={confirmarJustificativa}
         pendente={decidir.isPending || revogar.isPending}
+      />
+      <ModalEditar
+        chave={editando}
+        onCancelar={() => {
+          setEditando(null);
+          setErro(null);
+        }}
+        erro={erro}
+        pendente={editar.isPending}
+        onSalvo={async (dados) => {
+          const codigoTotp = await pedirCodigoTotp(
+            'Confirme a correção da chave PIX com o código 2FA:',
+          );
+          if (!codigoTotp || !editando) return;
+          editar.mutate({ id: editando.idPublico, ...dados, codigoTotp });
+        }}
       />
     </Shell>
   );

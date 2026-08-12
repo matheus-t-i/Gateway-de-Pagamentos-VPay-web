@@ -411,8 +411,11 @@ Content-Type: application/json`}</Codigo>
                 </Linha>
                 <Linha>
                   <Cel mono>pagador.telefone</Cel>
-                  <Cel>não</Cel>
-                  <Cel>Até 20 caracteres. Repassado à liquidante quando presente.</Cel>
+                  <Cel>sim</Cel>
+                  <Cel>
+                    Telefone com DDD (10 ou 11 dígitos). Aceita máscara; gravamos só os
+                    números. Sem ele a cobrança volta <C>400</C>.
+                  </Cel>
                 </Linha>
                 <Linha>
                   <Cel mono>pagador.endereco</Cel>
@@ -486,11 +489,13 @@ Content-Type: application/json`}</Codigo>
               </Tabela>
 
               <Atencao>
-                <strong>Sem nome, documento e e-mail do pagador não existe cobrança.</strong>{' '}
-                A liquidante exige os três para gerar o PIX. Enviando incompleto, a
-                resposta é <C>400</C> apontando o campo que falta — nenhum código PIX é
-                gerado. Os mesmos três dados são exigidos pelos apps de rastreio que você
-                pode conectar em{' '}
+                <strong>
+                  Sem nome, documento, e-mail e telefone do pagador não existe cobrança.
+                </strong>{' '}
+                A liquidante exige identificação completa para gerar o PIX. Enviando
+                incompleto, a resposta é <C>400</C> apontando o campo que falta — nenhum
+                código PIX é gerado. Os mesmos dados alimentam os apps de rastreio que
+                você pode conectar em{' '}
                 <a className="text-accent underline" href="/desenvolvedores/integracoes">
                   Integrações
                 </a>
@@ -525,7 +530,8 @@ Content-Type: application/json`}</Codigo>
     "pagador": {
       "nome": "Fulano de Tal",
       "documento": "12345678909",
-      "email": "fulano@email.com"
+      "email": "fulano@email.com",
+      "telefone": "11999998888"
     },
     "itens": [
       { "titulo": "Curso", "quantidade": 1, "valorUnitario": 150.00, "tangivel": false }

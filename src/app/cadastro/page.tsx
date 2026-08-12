@@ -128,6 +128,11 @@ export default function CadastroPage() {
       setErro('Informe um CPF válido para o responsável pela empresa.');
       return;
     }
+    const fone = telefone.replace(/\D/g, '');
+    if (fone.length < 10) {
+      setErro('Informe um telefone com DDD (10 ou 11 dígitos).');
+      return;
+    }
     if (!aceiteTermos || !aceiteContrato) {
       setErro('Marque o aceite dos dois documentos para concluir o cadastro.');
       return;
@@ -143,7 +148,7 @@ export default function CadastroPage() {
           nomeRazaoSocial: nome,
           nomeFantasia: nomeFantasia || undefined,
           email,
-          telefone: telefone.replace(/\D/g, '') || undefined,
+          telefone: fone,
           senha,
           responsavel: isPJ ? { cpf: respDoc, nome: respNome } : undefined,
           endereco: {
@@ -211,13 +216,14 @@ export default function CadastroPage() {
             />
           </label>
           <label className="block text-sm">
-            Telefone
+            <TextoRotulo obrigatorio>Telefone</TextoRotulo>
             <input
               className={inputCls}
               value={telefone}
               onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
               placeholder="(11) 99999-9999"
               inputMode="tel"
+              required
             />
           </label>
         </div>
