@@ -4,7 +4,8 @@ import { ReactNode, useEffect } from 'react';
 
 /**
  * Modal mobile-first: no celular sobe de baixo (bottom sheet), no desktop
- * centraliza. Fecha no ESC, no backdrop e no X.
+ * centraliza. Por padrão SÓ fecha no X, Cancelar ou ação explícita — clique
+ * no overlay e Escape NÃO fecham (evita perder formulário no meio do preenchimento).
  */
 const LARGURAS = {
   md: 'max-w-md',
@@ -18,6 +19,7 @@ export function Modal({
   title,
   children,
   largura = 'md',
+  fecharAoClicarFora = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,28 +27,33 @@ export function Modal({
   children: ReactNode;
   /** `lg`/`xl` para formulários largos (ex.: matriz de permissões). */
   largura?: keyof typeof LARGURAS;
+  /**
+   * Se true, fecha no clique do overlay e no Escape.
+   * Default false: só X / Cancelar / ação do formulário.
+   */
+  fecharAoClicarFora?: boolean;
 }) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !fecharAoClicarFora) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, fecharAoClicarFora]);
 
   if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4"
-      onClick={onClose}
+      onClick={fecharAoClicarFora ? onClose : undefined}
       role="dialog"
       aria-modal="true"
     >
       <div
         className={`max-h-[90vh] w-full ${LARGURAS[largura]} overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl dark:bg-ink-900 sm:rounded-2xl`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={fecharAoClicarFora ? (e) => e.stopPropagation() : undefined}
       >
         <div className="mb-4 flex items-center justify-between gap-4">
           <h3 className="font-display text-lg font-semibold">{title}</h3>

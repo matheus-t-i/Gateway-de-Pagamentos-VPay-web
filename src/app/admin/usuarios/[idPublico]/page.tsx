@@ -12,14 +12,13 @@ import {
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
-  UserRound,
   Wallet,
 } from 'lucide-react';
 import { Shell } from '@/components/shell';
 import { DocumentosAdmin } from '@/components/documentos-admin';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatarDocumento, mascaraCep, mascaraTelefone } from '@/lib/documento';
+import { formatarDocumento } from '@/lib/documento';
 import { gradeLeitura } from '@/components/campos';
 import {
   BaseCalculoReserva,
@@ -27,6 +26,7 @@ import {
   ModoTratamentoMed,
   MODOS_MED,
 } from '@/lib/config-comercial';
+import { FormularioDadosCadastrais } from './dados-cadastrais';
 import {
   AcoesSeguranca,
   Bloco,
@@ -328,6 +328,23 @@ export default function UsuarioDetalhePage() {
             />
           </Bloco>
 
+          <FormularioDadosCadastrais
+            idPublico={u.idPublico}
+            token={token}
+            onSalvo={recarregar}
+            ficha={{
+              tipoPessoa: u.tipoPessoa,
+              cpfCnpj: u.cpfCnpj,
+              nomeRazaoSocial: u.nomeRazaoSocial,
+              nomeFantasia: u.nomeFantasia,
+              email: u.email,
+              telefone: u.telefone,
+              responsavel: u.responsavel,
+              endereco: u.endereco,
+              faturamentoMensalMedio: u.faturamentoMensalMedio,
+            }}
+          />
+
           {/* ── Consulta ──────────────────────────────────────────────────── */}
           <Secao
             icone={Wallet}
@@ -363,67 +380,6 @@ export default function UsuarioDetalhePage() {
               <p className="text-sm opacity-60">
                 Carteira ainda não aberta — ela nasce na ativação da conta.
               </p>
-            )}
-          </Secao>
-
-          <Secao
-            icone={UserRound}
-            titulo={pj ? 'Dados cadastrais' : 'Dados pessoais'}
-            descricao="Informações declaradas no cadastro."
-          >
-            <Grade>
-              <Campo label="Tipo de pessoa" valor={u.tipoPessoa} />
-              <Campo
-                label={pj ? 'CNPJ' : 'CPF'}
-                valor={formatarDocumento(u.cpfCnpj)}
-              />
-              <Campo
-                label={pj ? 'Razão social' : 'Nome completo'}
-                valor={u.nomeRazaoSocial}
-              />
-              <Campo label="Nome fantasia" valor={u.nomeFantasia} />
-              <Campo label="E-mail" valor={u.email} />
-              <Campo
-                label="Telefone"
-                valor={u.telefone ? mascaraTelefone(u.telefone) : null}
-              />
-              <Campo
-                label="Faturamento mensal médio"
-                valor={dinheiro(u.faturamentoMensalMedio)}
-              />
-              <Campo
-                label={pj ? 'Responsável pela conta' : 'Titular'}
-                valor={u.responsavel.nome}
-              />
-              <Campo
-                label={pj ? 'CPF do responsável' : 'CPF do titular'}
-                valor={u.responsavel.cpf ? formatarDocumento(u.responsavel.cpf) : null}
-              />
-            </Grade>
-          </Secao>
-
-          <Secao icone={ScrollText} titulo="Endereço">
-            {u.endereco ? (
-              <Grade>
-                <Campo
-                  label="CEP"
-                  valor={u.endereco.cep ? mascaraCep(u.endereco.cep) : null}
-                />
-                <Campo label="Logradouro" valor={u.endereco.logradouro} />
-                <Campo label="Número" valor={u.endereco.numero} />
-                <Campo label="Complemento" valor={u.endereco.complemento} />
-                <Campo label="Bairro" valor={u.endereco.bairro} />
-                <Campo
-                  label="Cidade / UF"
-                  valor={
-                    u.endereco.cidade
-                      ? `${u.endereco.cidade}${u.endereco.uf ? ` / ${u.endereco.uf}` : ''}`
-                      : null
-                  }
-                />
-              </Grade>
-            ) : (
-              <p className="text-sm opacity-60">Nenhum endereço cadastrado.</p>
             )}
           </Secao>
 

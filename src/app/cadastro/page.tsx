@@ -16,6 +16,8 @@ import {
   mascaraTelefone,
   normalizarDocumento,
 } from '@/lib/documento';
+import { textoSituacaoCep } from '@/lib/cep';
+import { useBuscaCep } from '@/lib/use-busca-cep';
 import { salvarCredsOnboarding } from '@/lib/onboarding';
 
 const inputCls =
@@ -29,14 +31,8 @@ function ModalDocumento({
   onFechar: () => void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onFechar}
-    >
-      <div
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl dark:bg-ink-950"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl dark:bg-ink-950">
         <div className="flex items-center justify-between border-b border-ink-800/10 px-6 py-4 dark:border-white/10">
           <h2 className="font-display text-lg font-semibold">{doc.titulo}</h2>
           <button
@@ -95,6 +91,16 @@ export default function CadastroPage() {
   const [modal, setModal] = useState<DocumentoLegal | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { situacao: situacaoCep, buscar: buscarCep } = useBuscaCep((e) => {
+    setEndereco((s) => ({
+      ...s,
+      logradouro: e.logradouro,
+      bairro: e.bairro,
+      cidade: e.cidade,
+      uf: e.uf,
+    }));
+  });
+  const avisoCep = textoSituacaoCep(situacaoCep);
 
   const isPJ = tipoPessoa === 'PJ';
 
@@ -306,13 +312,19 @@ export default function CadastroPage() {
               <input
                 className={inputCls}
                 value={endereco.cep}
-                onChange={(e) =>
-                  setEndereco((s) => ({ ...s, cep: mascaraCep(e.target.value) }))
-                }
+                onChange={(e) => {
+                  const cep = mascaraCep(e.target.value);
+                  setEndereco((s) => ({ ...s, cep }));
+                  buscarCep(cep);
+                }}
                 placeholder="00000-000"
                 inputMode="numeric"
                 required
+                autoComplete="postal-code"
               />
+              {avisoCep && (
+                <span className="mt-1 block text-xs opacity-60">{avisoCep}</span>
+              )}
             </label>
             <label className="block text-sm sm:col-span-2">
               <TextoRotulo obrigatorio>Logradouro</TextoRotulo>

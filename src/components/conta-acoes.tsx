@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -9,6 +10,8 @@ import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
+import { QrPix } from './qr-pix';
+import { BadgeSituacao } from './status';
 
 const inputCls =
   'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-900';
@@ -31,7 +34,13 @@ type ChavePix = {
   situacao: string;
   motivoReprovacao: string | null;
 };
-type CobrancaResp = { idTransacao: string; pixCopiaCola?: string | null };
+type CobrancaResp = {
+  idTransacao: string;
+  pixCopiaCola?: string | null;
+  valor?: string;
+  situacao?: string;
+};
+type DetalheTx = { idTransacao: string; situacao: string; valorBruto?: string };
 type NovaCredencial = { chavePublica: string; segredo: string };
 
 /** Extrai a mensagem legível do erro lançado por api() (texto ou JSON Nest). */
@@ -108,12 +117,14 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
   const [resp, setResp] = useState<CobrancaResp | null>(null);
   const [copiado, setCopiado] = useState(false);
 
+  // Depósito interno não exige step-up 2FA: só gera cobrança PIX para o
+  // próprio lojista; o crédito entra quando o pagamento é confirmado.
   const criar = useMutation({
-    mutationFn: (codigoTotp: string) =>
+    mutationFn: () =>
       api<CobrancaResp>('/painel/transacoes/cobrancas', {
         token,
         method: 'POST',
-        body: JSON.stringify({ valor, codigoTotp }),
+        body: JSON.stringify({ valor }),
       }),
     onSuccess: (r) => {
       setResp(r);
@@ -122,6 +133,27 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
     },
     onError: (e) => setErro(mensagemErro(e)),
   });
+
+  const status = useQuery({
+    queryKey: ['deposito-status', resp?.idTransacao],
+    enabled: open && !!resp?.idTransacao,
+    refetchInterval: (q) => {
+      const s = q.state.data?.situacao;
+      if (s === 'CONCLUIDA' || s === 'LIQUIDADA' || s === 'FALHA') return false;
+      return 2500;
+    },
+    queryFn: () =>
+      api<DetalheTx>(`/painel/transacoes/${resp!.idTransacao}`, { token }),
+  });
+
+  const situacao = status.data?.situacao ?? resp?.situacao ?? 'AGUARDANDO_PAGAMENTO';
+  const pago = situacao === 'CONCLUIDA' || situacao === 'LIQUIDADA';
+  const falhou = situacao === 'FALHA';
+
+  useEffect(() => {
+    if (!pago) return;
+    void qc.invalidateQueries({ queryKey: ['painel-dashboard'] });
+  }, [pago, qc]);
 
   function fechar() {
     setValor('');
@@ -135,19 +167,15 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
     <Modal open={open} onClose={fechar} title="Depósito interno via PIX">
       {!resp ? (
         <form
-          onSubmit={async (e) => {
+          onSubmit={(e) => {
             e.preventDefault();
-            const codigoTotp = await pedirCodigoTotp(
-              'Confirme o depósito com o código 2FA (6 dígitos):',
-            );
-            if (!codigoTotp) return;
-            criar.mutate(codigoTotp);
+            criar.mutate();
           }}
           className="space-y-4"
         >
           <p className="text-sm opacity-70">
-            Gere um código PIX copia-e-cola para adicionar saldo na sua conta. O
-            crédito entra quando o pagamento é confirmado.
+            Gere um QR Code PIX para adicionar saldo na sua conta. O crédito
+            entra quando o pagamento é confirmado.
           </p>
           <label className="block text-sm">
             <TextoRotulo obrigatorio>Valor (R$)</TextoRotulo>
@@ -163,30 +191,65 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
           {erro && <p className="text-sm text-red-600">{erro}</p>}
           <ModalAcoes onCancelar={fechar} rotulo="Gerar cobrança" pendente={criar.isPending} />
         </form>
+      ) : pago ? (
+        <div className="space-y-4 text-center">
+          <CheckCircle2
+            className="mx-auto h-14 w-14 text-emerald-600 dark:text-emerald-400"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          <div className="space-y-1">
+            <p className="font-display text-lg font-semibold">PIX recebido</p>
+            <p className="text-sm opacity-70">
+              O pagamento foi confirmado e o saldo já está sendo creditado na
+              sua conta.
+            </p>
+          </div>
+          <BadgeSituacao situacao={situacao} />
+          <button type="button" className={`${btnPrimary} w-full sm:w-auto`} onClick={fechar}>
+            Fechar
+          </button>
+        </div>
       ) : (
-        <div className="space-y-3">
-          <p className="text-sm">Pague o código abaixo para creditar o saldo:</p>
-          <div className="break-all rounded-md border border-ink-800/15 bg-ink-800/5 p-3 font-mono text-xs dark:border-white/10 dark:bg-white/5">
-            {resp.pixCopiaCola ?? '—'}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm opacity-70">
+              {falhou
+                ? 'Não foi possível concluir este PIX.'
+                : 'Escaneie o QR ou copie o código para pagar.'}
+            </p>
+            <BadgeSituacao situacao={situacao} />
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className={btnPrimary}
-              onClick={() => {
-                if (resp.pixCopiaCola) {
-                  void navigator.clipboard.writeText(resp.pixCopiaCola);
+          {resp.pixCopiaCola && !falhou && <QrPix payload={resp.pixCopiaCola} />}
+          {!falhou && (
+            <div className="max-h-24 overflow-y-auto break-all rounded-md border border-ink-800/15 bg-ink-800/5 p-3 font-mono text-[11px] leading-relaxed dark:border-white/10 dark:bg-white/5">
+              {resp.pixCopiaCola ?? '—'}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {!falhou && resp.pixCopiaCola && (
+              <button
+                type="button"
+                className={btnPrimary}
+                onClick={() => {
+                  void navigator.clipboard.writeText(resp.pixCopiaCola!);
                   setCopiado(true);
-                }
-              }}
-            >
-              {copiado ? 'Copiado!' : 'Copiar código'}
-            </button>
+                }}
+              >
+                {copiado ? 'Copiado!' : 'Copiar código'}
+              </button>
+            )}
             <button type="button" className="text-sm underline opacity-60" onClick={fechar}>
-              Fechar
+              {falhou ? 'Fechar' : 'Pagar depois'}
             </button>
           </div>
-          <p className="text-xs opacity-60">Transação: {resp.idTransacao}</p>
+          {!falhou && (
+            <p className="text-xs opacity-60">
+              Aguardando o pagamento… esta tela atualiza sozinha quando o PIX
+              for confirmado.
+            </p>
+          )}
+          <p className="text-xs opacity-50">Transação: {resp.idTransacao}</p>
         </div>
       )}
     </Modal>

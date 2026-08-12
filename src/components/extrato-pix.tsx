@@ -17,6 +17,7 @@ import { BotaoReenviarWebhook } from '@/components/reenviar-webhook';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { podeReenviarCallback } from '@/lib/callback-lojista';
 
 const brl = (v: string | number) =>
   'R$ ' +
@@ -249,9 +250,10 @@ export function ExtratoPix({ direcao }: { direcao: 'ENTRADA' | 'SAIDA' }) {
           {
             chave: 'acoes',
             titulo: '',
-            render: (t: Item) => (
-              <BotaoReenviarWebhook idTransacao={t.idTransacao} escopo="painel" />
-            ),
+            render: (t: Item) =>
+              podeReenviarCallback(t.situacao, entrada ? 'ENTRADA' : 'SAIDA') ? (
+                <BotaoReenviarWebhook idTransacao={t.idTransacao} escopo="painel" />
+              ) : null,
           },
         ] as Coluna<Item>[])
       : []),

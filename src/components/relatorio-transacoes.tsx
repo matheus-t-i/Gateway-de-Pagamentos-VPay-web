@@ -7,6 +7,7 @@ import { Modal, ModalAcoes } from '@/components/modal';
 import { BarraFiltros, BotaoLimparFiltros, Coluna, FiltroData, FiltroSelect, FiltroTexto, SeletorPorPagina, TabelaPaginada } from '@/components/tabela';
 import { BadgeSituacao, rotuloSituacao } from '@/components/status';
 import { BotaoReenviarWebhook } from '@/components/reenviar-webhook';
+import { podeReenviarCallback } from '@/lib/callback-lojista';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
@@ -421,9 +422,10 @@ export function RelatorioTransacoes({
       render: (t: Item) => (
         <div className="flex flex-col gap-1">
           <BotaoDetalhe item={t} />
-          {podeReenviar && (
-            <BotaoReenviarWebhook idTransacao={t.idTransacao} escopo="admin" />
-          )}
+          {podeReenviar &&
+            podeReenviarCallback(t.situacao, direcao) && (
+              <BotaoReenviarWebhook idTransacao={t.idTransacao} escopo="admin" />
+            )}
           {cashIn && podeLiberar && (
             <BotaoLiberarRetencao
               item={t}

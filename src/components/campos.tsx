@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Ajuda } from '@/components/ajuda';
+import { Obrigatorio } from '@/components/obrigatorio';
 
 /**
  * Campos de formulário do painel — moeda, percentual, select e chaves.
@@ -26,13 +27,18 @@ const ALTURA = 'h-9';
 export function Rotulo({
   children,
   ajuda,
+  obrigatorio,
 }: {
   children: ReactNode;
   ajuda?: string;
+  obrigatorio?: boolean;
 }) {
   return (
     <span className="flex items-center gap-1 text-xs font-medium opacity-70">
-      <span className="min-w-0 leading-snug">{children}</span>
+      <span className="min-w-0 leading-snug">
+        {children}
+        {obrigatorio ? <Obrigatorio /> : null}
+      </span>
       {ajuda ? <Ajuda texto={ajuda} /> : null}
     </span>
   );
@@ -67,6 +73,7 @@ export function Selecao({
   label,
   dica,
   ajuda,
+  obrigatorio,
   value,
   onChange,
   disabled,
@@ -76,6 +83,7 @@ export function Selecao({
   label?: string;
   dica?: string;
   ajuda?: string;
+  obrigatorio?: boolean;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
@@ -84,7 +92,11 @@ export function Selecao({
 }) {
   return (
     <label className={`block ${LARGURA_CAMPO} ${className}`}>
-      {label && <Rotulo ajuda={ajuda}>{label}</Rotulo>}
+      {label && (
+        <Rotulo ajuda={ajuda} obrigatorio={obrigatorio}>
+          {label}
+        </Rotulo>
+      )}
       <span className="relative mt-1.5 block">
         <select
           className={`${controleBase} ${ALTURA} cursor-pointer appearance-none pl-3 pr-9`}

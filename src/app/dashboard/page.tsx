@@ -26,6 +26,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import Link from 'next/link';
 import { Shell } from '@/components/shell';
 import { BadgeSituacao } from '@/components/status';
 import { DepositoModal, SaqueModal } from '@/components/conta-acoes';
@@ -179,6 +180,10 @@ const TOOLTIP_STYLE = {
   boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
 } as const;
 
+/** Mesmas cores dos badges: âmbar = aguardando, verde = pago. */
+const COR_PENDENTE = '#f59e0b';
+const COR_PAGO = '#10b981';
+
 export default function DashboardPage() {
   const { token, pode } = useAuth();
   const [range, setRange] = useState<string>('1d');
@@ -189,16 +194,21 @@ export default function DashboardPage() {
   const painel = useQuery({
     queryKey: ['painel-dashboard', range],
     enabled: !!token,
+    refetchInterval: 10_000,
     queryFn: () => api<Painel>(`/painel/dashboard?range=${range}`, { token: token! }),
   });
 
   const d = painel.data;
   const chart =
-    d?.serie.map((s) => ({
-      label: rotuloSerie(s.ts, d.range),
-      geradas: Number(s.geradas),
-      aprovadas: Number(s.aprovadas),
-    })) ?? [];
+    d?.serie.map((s) => {
+      const geradas = Number(s.geradas);
+      const pagas = Number(s.aprovadas);
+      return {
+        label: rotuloSerie(s.ts, d.range),
+        pendentes: Math.max(0, geradas - pagas),
+        pagas,
+      };
+    }) ?? [];
 
   const contaAtiva = d?.conta.situacao === 'ATIVO';
   const conversaoPct = ((d?.conversao ?? 0) * 100).toFixed(1).replace('.', ',');
@@ -208,16 +218,18 @@ export default function DashboardPage() {
   const kpis = [
     {
       titulo: 'Gerados',
+      ajuda: 'Soma de todas as cobranças criadas no período, qualquer situação (aguardando, paga ou falha).',
       valor: brl(d?.totais.gerados ?? '0'),
-      detalhe: `${d?.geradasQtd ?? 0} cobranças`,
+      detalhe: `${d?.geradasQtd ?? 0} cobranças criadas`,
       anterior: `antes: ${brl(d?.anterior.gerados ?? '0')}`,
       pct: variacao(Number(d?.totais.gerados ?? 0), Number(d?.anterior.gerados ?? 0)),
       icone: Receipt,
     },
     {
       titulo: 'Pagos',
+      ajuda: 'Só cobranças confirmadas (CONCLUIDA). Aguardando pagamento não entra aqui.',
       valor: brl(d?.totais.pagos ?? '0'),
-      detalhe: `${d?.aprovadasQtd ?? 0} vendas pagas · ${brl(mediaDiaria)}/dia`,
+      detalhe: `${d?.aprovadasQtd ?? 0} pagas · ${brl(mediaDiaria)}/dia`,
       anterior: `antes: ${brl(d?.anterior.pagos ?? '0')}`,
       pct: variacao(Number(d?.totais.pagos ?? 0), Number(d?.anterior.pagos ?? 0)),
       icone: CheckCircle2,
@@ -225,6 +237,7 @@ export default function DashboardPage() {
     },
     {
       titulo: 'Ticket médio',
+      ajuda: 'Valor médio só das cobranças pagas no período.',
       valor: brl(d?.ticketMedio ?? '0'),
       detalhe: 'por venda paga',
       anterior: `antes: ${brl(d?.anterior.ticketMedio ?? '0')}`,
@@ -236,6 +249,7 @@ export default function DashboardPage() {
     },
     {
       titulo: 'Conversão',
+      ajuda: 'Pagas ÷ geradas no período. Cobrança só gerada (aguardando) baixa a conversão.',
       valor: `${conversaoPct}%`,
       detalhe: `${d?.aprovadasQtd ?? 0} de ${d?.geradasQtd ?? 0} cobranças`,
       anterior: `antes: ${((d?.anterior.conversao ?? 0) * 100)
@@ -428,7 +442,10 @@ export default function DashboardPage() {
           {kpis.map((k) => (
             <Painel key={k.titulo} className="flex flex-col justify-between p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-medium uppercase tracking-wide opacity-55">
+                <p
+                  className="text-[11px] font-medium uppercase tracking-wide opacity-55"
+                  title={k.ajuda}
+                >
                   {k.titulo}
                 </p>
                 <span
@@ -475,12 +492,18 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-3 text-[11px] opacity-70">
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-[var(--chart-1)]" />
-                Geradas
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ background: COR_PENDENTE }}
+                />
+                Pendentes
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-[var(--chart-2)]" />
-                Aprovadas
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ background: COR_PAGO }}
+                />
+                Pagas
               </span>
             </div>
           </div>
@@ -488,13 +511,13 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chart} margin={{ left: -14, right: 8, top: 6, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="fillGeradas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.22} />
-                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+                  <linearGradient id="fillPendentes" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={COR_PENDENTE} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={COR_PENDENTE} stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="fillAprovadas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
+                  <linearGradient id="fillPagas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={COR_PAGO} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={COR_PAGO} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
@@ -509,20 +532,20 @@ export default function DashboardPage() {
                 <Tooltip formatter={(v) => brl(Number(v))} contentStyle={TOOLTIP_STYLE} />
                 <Area
                   type="monotone"
-                  dataKey="geradas"
-                  name="Geradas"
-                  stroke="var(--chart-1)"
+                  dataKey="pendentes"
+                  name="Pendentes"
+                  stroke={COR_PENDENTE}
                   strokeWidth={2}
-                  fill="url(#fillGeradas)"
+                  fill="url(#fillPendentes)"
                   dot={false}
                 />
                 <Area
                   type="monotone"
-                  dataKey="aprovadas"
-                  name="Aprovadas"
-                  stroke="var(--chart-2)"
+                  dataKey="pagas"
+                  name="Pagas"
+                  stroke={COR_PAGO}
                   strokeWidth={2}
-                  fill="url(#fillAprovadas)"
+                  fill="url(#fillPagas)"
                   dot={false}
                 />
               </AreaChart>
@@ -533,8 +556,19 @@ export default function DashboardPage() {
 
       {/* Transações recentes */}
       <Painel className="mt-3 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-ink-800/10 px-4 py-3 dark:border-white/10">
-          <h2 className="font-display text-sm font-semibold">Transações recentes</h2>
+        <div className="flex items-center justify-between gap-3 border-b border-ink-800/10 px-4 py-3 dark:border-white/10">
+          <div>
+            <h2 className="font-display text-sm font-semibold">Transações recentes</h2>
+            <p className="mt-0.5 text-[11px] opacity-50">
+              Últimas cobranças geradas — inclusive aguardando pagamento.
+            </p>
+          </div>
+          <Link
+            href="/transacoes"
+            className="shrink-0 text-xs font-medium text-accent underline-offset-2 hover:underline"
+          >
+            Ver todas
+          </Link>
         </div>
 
         {/* Tabela — desktop */}
@@ -578,7 +612,9 @@ export default function DashboardPage() {
               {!d?.recentes.length && (
                 <tr>
                   <td className="px-4 py-6 text-sm opacity-60" colSpan={6}>
-                    {painel.isLoading ? 'Carregando…' : 'Nenhuma transação ainda.'}
+                    {painel.isLoading
+                      ? 'Carregando…'
+                      : 'Nenhuma cobrança gerada ainda.'}
                   </td>
                 </tr>
               )}
@@ -612,7 +648,7 @@ export default function DashboardPage() {
           ))}
           {!d?.recentes.length && (
             <li className="px-4 py-6 text-sm opacity-60">
-              {painel.isLoading ? 'Carregando…' : 'Nenhuma transação ainda.'}
+              {painel.isLoading ? 'Carregando…' : 'Nenhuma cobrança gerada ainda.'}
             </li>
           )}
         </ul>

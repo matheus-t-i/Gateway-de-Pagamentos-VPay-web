@@ -28,6 +28,20 @@ export type StatusCallback =
   | (typeof STATUS_CASH_IN)[number]
   | (typeof STATUS_CASH_OUT)[number];
 
+/**
+ * Reenvio manual só onde existe evento de outbox. Espelho de
+ * `podeReenviarCallback` da API.
+ */
+export function podeReenviarCallback(
+  situacao: string,
+  direcao: 'ENTRADA' | 'SAIDA',
+): boolean {
+  if (direcao === 'ENTRADA') {
+    return situacao === 'CONCLUIDA' || situacao === 'MED';
+  }
+  return situacao === 'CONCLUIDA' || situacao === 'FALHA';
+}
+
 export const STATUS_CALLBACK_DOC: Array<{
   status: StatusCallback;
   operacoes: OperacaoCallback[];
