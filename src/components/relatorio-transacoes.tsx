@@ -551,7 +551,7 @@ export function RelatorioTransacoes({
               <option value="nao">Não</option>
             </FiltroSelect>
           )}
-          <FiltroTexto label="Busca" value={busca} onChange={(v) => { setBusca(v); reset(); }} placeholder="Ref, idTransacao ou endToEnd" />
+          <FiltroTexto label="Busca" value={busca} onChange={(v) => { setBusca(v); reset(); }} placeholder="Ref, idTransacao, endToEnd ou job da fila (saque-7)" />
           {(dataInicial || dataFinal || cliente || adquirente || situacao || metodo || medAuto || busca) && (
             <BotaoLimparFiltros onClick={() => { setDataInicial(''); setDataFinal(''); setCliente(''); setAdquirente(''); setSituacao(''); setMetodo(''); setMedAuto(''); setBusca(''); reset(); }} />
           )}

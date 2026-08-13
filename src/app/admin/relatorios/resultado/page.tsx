@@ -128,8 +128,8 @@ export default function RelatorioResultadoPage() {
     <Shell>
       <h1 className="font-display text-3xl font-semibold">Apuração de Resultado</h1>
       <p className="mt-1 text-sm opacity-70">
-        Receita efetivamente cobrada do cliente confrontada com o custo configurado da
-        adquirente usada.
+        Receita cobrada em vendas pagas confrontada com o custo persistido da
+        adquirente. PIX ainda não pago não entra.
       </p>
 
       <div className="mt-6">
@@ -160,18 +160,30 @@ export default function RelatorioResultadoPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          <Kpi titulo="Volume processado" valor={brl(k?.volumeProcessado ?? 0)} />
-          <Kpi titulo="Receita cobrada" valor={brl(k?.receitaCobrada ?? 0)} nota="dos clientes" />
+          <Kpi
+            titulo="Volume processado"
+            valor={brl(k?.volumeProcessado ?? 0)}
+            nota="vendas pagas"
+          />
+          <Kpi
+            titulo="Receita cobrada"
+            valor={brl(k?.receitaCobrada ?? 0)}
+            nota="tarifa de vendas pagas"
+          />
           <Kpi titulo="Custo das adquirentes" valor={brl(k?.custoAdquirentes ?? 0)} />
           <Kpi
             titulo="Resultado líquido"
             valor={brl(k?.resultadoLiquido ?? 0)}
-            nota={k ? `inclui ${brl(k.vendasRetidas)} de vendas retidas` : undefined}
+            nota="receita de vendas pagas − custo"
           />
           <Kpi
             titulo="Vendas retidas"
             valor={brl(k?.vendasRetidas ?? 0)}
-            nota={k ? `${k.vendasRetidasOps} operação(ões)` : undefined}
+            nota={
+              k
+                ? `${k.vendasRetidasOps} op. pagas na liquidante, sem crédito`
+                : undefined
+            }
           />
           <Kpi titulo="Margem sobre o volume" valor={pct(k?.margemSobreVolume ?? 0)} />
           <Kpi titulo="Operações" valor={String(k?.operacoes ?? 0)} />
@@ -216,7 +228,8 @@ export default function RelatorioResultadoPage() {
                         {brl(c.resultado)}
                         {Number(c.retido) > 0 && (
                           <span className="block text-xs font-normal opacity-60">
-                            Retidas: {brl(c.retido)} ({c.retidoOps} op.)
+                            Retidas (sem crédito): {brl(c.retido)} ({c.retidoOps}{' '}
+                            op.)
                           </span>
                         )}
                       </td>
@@ -308,10 +321,11 @@ export default function RelatorioResultadoPage() {
         </div>
 
         <p className="mt-4 text-xs opacity-50">
-          Receita = tarifa persistida na operação (cash-in: amount − líquido; cash-out: idem).
-          Custo = tarifa da adquirente (fixa + amount × %). Vendas retidas
-          (AGUARDANDO_PAGAMENTO): o valor fica com o lojista, entra como receita com custo
-          R$ 0,00. Custo ausente é sinalizado (pode superestimar o lucro).
+          Receita = tarifa persistida só em venda paga (cash-in concluída, liquidada
+          ou MED; cash-out concluído). Volume processado usa as mesmas operações.
+          PIX aguardando pagamento não entra. Vendas retidas = pagas na liquidante
+          sem crédito ao lojista — ficam no card próprio, fora da receita e do
+          resultado. Custo ausente é sinalizado (pode superestimar o lucro).
         </p>
       </div>
     </Shell>
