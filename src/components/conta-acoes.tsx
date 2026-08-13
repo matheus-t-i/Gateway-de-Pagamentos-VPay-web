@@ -17,6 +17,7 @@ import {
   type TipoChavePix,
 } from '@/lib/chave-pix';
 import { isCnpj, isCpf, mascaraCnpj, mascaraCpf, normalizarDocumento } from '@/lib/documento';
+import { centavosDe, formatarBrl, mensagemValorSaque } from '@/lib/dinheiro';
 import { CampoChavePix, CampoMoeda } from './campos';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
@@ -34,6 +35,12 @@ type ModalProps = {
   open: boolean;
   onClose: () => void;
   token: string;
+};
+
+type SaqueModalProps = ModalProps & {
+  saldoDisponivel?: string;
+  ticketMinimoPixSaida?: string;
+  ticketMaximoPixSaida?: string | null;
 };
 
 type ChavePix = {
@@ -271,7 +278,14 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
   );
 }
 
-export function SaqueModal({ open, onClose, token }: ModalProps) {
+export function SaqueModal({
+  open,
+  onClose,
+  token,
+  saldoDisponivel,
+  ticketMinimoPixSaida,
+  ticketMaximoPixSaida,
+}: SaqueModalProps) {
   const { pode } = useAuth();
   const podeRemover = pode(PERMISSOES.CHAVES_PIX_EXCLUIR);
   const qc = useQueryClient();
@@ -310,6 +324,15 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
   const pendentesOuReprovadas = (chaves.data ?? []).filter(
     (c) => c.situacao !== 'APROVADA',
   );
+  const erroValor = mensagemValorSaque({
+    valor,
+    saldoDisponivel,
+    ticketMinimoPixSaida,
+    ticketMaximoPixSaida,
+  });
+  const valorCentavos = centavosDe(valor);
+  const valorInvalido =
+    !Number.isFinite(valorCentavos) || valorCentavos <= 0 || !!erroValor;
 
   const sacar = useMutation({
     mutationFn: (codigoTotp: string) =>
@@ -405,6 +428,7 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (valorInvalido) return;
                 const codigoTotp = await pedirCodigoTotp(
                   'Confirme o saque com o código 2FA (6 dígitos):',
                 );
@@ -451,7 +475,12 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
                   setErro(null);
                 }}
                 className="!max-w-none"
-                dica="Digite só os números — a vírgula entra sozinha."
+                erro={erroValor ?? undefined}
+                dica={
+                  saldoDisponivel != null && saldoDisponivel !== ''
+                    ? `Saldo disponível: ${formatarBrl(saldoDisponivel)}. Digite só os números — a vírgula entra sozinha.`
+                    : 'Digite só os números — a vírgula entra sozinha.'
+                }
               />
               {erro && !novaChave && (
                 <p className="text-sm text-red-600">{erro}</p>
@@ -460,7 +489,7 @@ export function SaqueModal({ open, onClose, token }: ModalProps) {
                 onCancelar={fechar}
                 rotulo="Solicitar saque"
                 pendente={sacar.isPending || remover.isPending}
-                desabilitado={Number(valor) <= 0}
+                desabilitado={valorInvalido}
               />
             </form>
           ) : (

@@ -85,6 +85,8 @@ type Painel = {
       percentualReserva: string;
       diasRetencaoReserva: number;
       medBloqueiaSaldo: boolean;
+      ticketMinimoPixSaida?: string;
+      ticketMaximoPixSaida?: string | null;
     };
   };
 };
@@ -665,6 +667,9 @@ export default function DashboardPage() {
             open={saqueAberto}
             onClose={() => setSaqueAberto(false)}
             token={token}
+            saldoDisponivel={d?.saldoDisponivel ?? d?.conta.saldo?.disponivel ?? '0'}
+            ticketMinimoPixSaida={d?.conta.regras?.ticketMinimoPixSaida}
+            ticketMaximoPixSaida={d?.conta.regras?.ticketMaximoPixSaida}
           />
         </>
       )}

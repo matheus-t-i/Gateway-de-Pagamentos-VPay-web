@@ -147,6 +147,7 @@ export function CampoMoeda({
   valor,
   onChange,
   disabled,
+  erro,
   className = '',
 }: {
   label: string;
@@ -156,6 +157,8 @@ export function CampoMoeda({
   valor: string;
   onChange: (decimal: string) => void;
   disabled?: boolean;
+  /** Validação visível no campo (ex. valor > saldo). Substitui a dica. */
+  erro?: string;
   className?: string;
 }) {
   const [centavos, setCentavos] = useState(() => paraCentavos(valor));
@@ -182,7 +185,11 @@ export function CampoMoeda({
         </span>
         <input
           data-moeda={label}
-          className={`${controleBase} ${ALTURA} pl-10 pr-3 text-right tabular-nums`}
+          className={`${controleBase} ${ALTURA} pl-10 pr-3 text-right tabular-nums${
+            erro
+              ? ' border-red-500 focus:border-red-500 focus:ring-red-500/25 dark:border-red-400'
+              : ''
+          }`}
           value={formatarCentavos(centavos)}
           onChange={(e) => {
             const digitos = e.target.value.replace(/\D/g, '').slice(0, 13);
@@ -192,9 +199,16 @@ export function CampoMoeda({
           }}
           inputMode="numeric"
           disabled={disabled}
+          aria-invalid={erro ? true : undefined}
         />
       </span>
-      <Dica>{dica}</Dica>
+      {erro ? (
+        <span className="mt-1 block text-[11px] leading-snug text-red-600 dark:text-red-400">
+          {erro}
+        </span>
+      ) : (
+        <Dica>{dica}</Dica>
+      )}
     </label>
   );
 }
