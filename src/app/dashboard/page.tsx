@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowDownToLine,
@@ -255,23 +255,31 @@ export default function DashboardPage() {
     [d?.serie],
   );
 
+  /**
+   * Rótulos do eixo X.
+   *
+   * Em 30/15 min o eixo mostra **um rótulo por balde** — era aqui que a
+   * granularidade escolhida se perdia: os ticks eram filtrados para hora
+   * cheia, então trocar "Por hora" por "30 min" mudava a série mas deixava o
+   * eixo idêntico, e a impressão era de que o botão não fazia nada.
+   *
+   * Cabem todos porque o gráfico ganha largura própria e rola nesse modo
+   * (`larguraMinimaChart`) — sem isso, 48 ou 96 rótulos se atropelariam.
+   */
   const ticksEixo = useMemo(() => {
     if (chart.length === 0) return [];
-    const horaCheia = chart.filter(
-      (p) => p.label.endsWith('h') || p.label.endsWith(':00'),
-    );
-    const base = range === '1d' && intervalo !== '1h' ? horaCheia : chart;
+    if (range === '1d' && intervalo !== '1h') return chart.map((p) => p.ts);
     const passo =
-      range !== '1d' && base.length > 16
+      range !== '1d' && chart.length > 16
         ? estreito
           ? 4
           : 2
         : estreito && range === '1d'
           ? 3
           : 1;
-    if (passo <= 1) return base.map((p) => p.ts);
-    return base
-      .filter((_, i) => i % passo === 0 || i === base.length - 1)
+    if (passo <= 1) return chart.map((p) => p.ts);
+    return chart
+      .filter((_, i) => i % passo === 0 || i === chart.length - 1)
       .map((p) => p.ts);
   }, [chart, range, intervalo, estreito]);
 
@@ -281,6 +289,26 @@ export default function DashboardPage() {
   );
 
   const chartComScroll = range === '1d' && intervalo !== '1h';
+
+  /**
+   * ~44px por balde: o suficiente para "19:30" em 11px sem encostar no
+   * vizinho. As larguras fixas antigas (560/720px) nunca chegavam a valer no
+   * desktop — o container já era mais largo que isso —, então a rolagem que
+   * daria espaço aos rótulos simplesmente não acontecia.
+   */
+  const larguraMinimaChart = chartComScroll ? chart.length * 44 : undefined;
+
+  /**
+   * Abre no AGORA, não às 20h de ontem. Um gráfico de 24h em passos de 15 min
+   * é largo: sem isso a tela abre na ponta mais velha e o movimento recente —
+   * o motivo de escolher granularidade fina — fica fora de vista.
+   */
+  const rolagemChart = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = rolagemChart.current;
+    if (!el || !chartComScroll) return;
+    el.scrollLeft = el.scrollWidth;
+  }, [chartComScroll, intervalo, chart.length]);
 
   const contaAtiva = d?.conta.situacao === 'ATIVO';
   const conversaoPct = ((d?.conversao ?? 0) * 100).toFixed(1).replace('.', ',');
@@ -553,8 +581,14 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Gráfico */}
-        <Painel className="p-4 sm:p-5 lg:col-span-12">
+        {/*
+          Gráfico. `min-w-0` é o que permite o eixo em 30/15 min: como item de
+          grid, este cartão nasce com `min-width: auto` e se RECUSA a encolher
+          abaixo do conteúdo — o gráfico largo empurrava o cartão (4.256px) e
+          estourava a página inteira em vez de rolar por dentro. Com min-width
+          zerado, quem rola é o container interno, como se pretendia.
+        */}
+        <Painel className="min-w-0 p-4 sm:p-5 lg:col-span-12">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="font-display text-sm font-semibold">Vendas no período</h2>
@@ -603,15 +637,13 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className={`mt-3 ${chartComScroll ? 'overflow-x-auto' : ''}`}>
+          <div
+            ref={rolagemChart}
+            className={`mt-3 ${chartComScroll ? 'overflow-x-auto' : ''}`}
+          >
             <div
-              className={`h-48 sm:h-56 ${
-                chartComScroll
-                  ? intervalo === '15m'
-                    ? 'min-w-[720px]'
-                    : 'min-w-[560px]'
-                  : 'w-full'
-              }`}
+              className={`h-48 sm:h-56 ${chartComScroll ? '' : 'w-full'}`}
+              style={larguraMinimaChart ? { minWidth: larguraMinimaChart } : undefined}
             >
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chart} margin={{ left: -14, right: 8, top: 6, bottom: 0 }}>
