@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { pedirTexto } from '@/lib/dialogos';
+import { formatarDataHora } from '@/lib/fuso';
 
 type CasoMed = {
   idPublico: string;
@@ -97,7 +98,7 @@ function Detalhes({ idPublico, token }: { idPublico: string; token: string }) {
           {det.data.historicos.map((h, i) => (
             <li key={i} className="flex flex-wrap gap-x-2 opacity-80">
               <span className="opacity-60">
-                {new Date(h.criadoEm).toLocaleString('pt-BR')}
+                {formatarDataHora(h.criadoEm)}
               </span>
               <span>
                 {h.situacaoAnterior ? `${h.situacaoAnterior} → ` : ''}
@@ -265,7 +266,7 @@ export default function MedPage() {
                 </p>
                 <p className="mt-1 text-xs opacity-60">
                   {rotuloModo[c.modo] ?? c.modo} ·{' '}
-                  {new Date(c.recebidoEm).toLocaleString('pt-BR')}
+                  {formatarDataHora(c.recebidoEm)}
                 </p>
                 {c.motivo && <p className="mt-1 text-xs opacity-70">{c.motivo}</p>}
               </div>

@@ -19,6 +19,7 @@ import { DocumentosAdmin } from '@/components/documentos-admin';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
+import { formatarDataHora } from '@/lib/fuso';
 import { gradeLeitura } from '@/components/campos';
 import {
   BaseCalculoReserva,
@@ -112,8 +113,7 @@ const corSituacao = (s: string) => {
   return 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300';
 };
 
-const dataHora = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('pt-BR') : '—';
+const dataHora = (iso: string | null) => formatarDataHora(iso);
 
 const rotuloModoMed = (v: ModoTratamentoMed) =>
   MODOS_MED.find((m) => m.v === v)?.label ?? v;

@@ -11,6 +11,7 @@ import {
   Monitor,
   Moon,
   Palette,
+  Percent,
   ShieldAlert,
   ShieldCheck,
   Smartphone,
@@ -28,6 +29,7 @@ import { useAuth } from '@/lib/auth';
 import { BRAND } from '@/lib/brand';
 import { PERMISSOES } from '@/lib/permissoes';
 import { REGRAS_SENHA } from '@/lib/senha';
+import { formatarDataHora } from '@/lib/fuso';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type InicioTotp = { segredo: string; uri: string; qrCodeDataUrl: string };
@@ -36,7 +38,7 @@ const inputBase =
   'mt-1 w-full rounded-lg border border-ink-800/15 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25 dark:border-white/10 dark:bg-ink-950/40';
 
 const dataHora = (v: string | Date) =>
-  new Date(v).toLocaleString('pt-BR', {
+  formatarDataHora(v, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -92,7 +94,19 @@ function Cartao({
             : ''
         }`}
       >
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        {/*
+          `basis-72` (288px) + `flex-wrap`: sem piso de largura, `flex-1` vale
+          `flex: 1 1 0%` e o título ESPREME até sumir em vez de o acessório
+          quebrar a linha — era o que deixava a descrição da Aparência em 3
+          linhas de duas palavras numa coluna de ~500px.
+
+          O número foi medido, não chutado: com 208px a quebra só acontecia
+          abaixo de 450px (não cobria a coluna real, ~525px); com 320px o
+          acessório descia mesmo quando cabia. 288px resolve de 420 a 560px e
+          NÃO quebra cartão de acessório pequeno (Perfil), porque o wrap é
+          calculado com a largura do acessório de cada cartão.
+        */}
+        <div className="flex min-w-0 flex-1 basis-72 items-start gap-3">
           <span
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
               perigo
@@ -222,6 +236,150 @@ function Perfil() {
           </div>
         ))}
       </dl>
+    </Cartao>
+  );
+}
+
+type Condicoes = {
+  taxas: {
+    pixEntradaPercentual: string;
+    pixEntradaFixa: string;
+    pixSaidaPercentual: string;
+    pixSaidaFixa: string;
+  };
+  limites: {
+    cobranca: { minimo: string; maximo: string; descricao: string };
+    saque: {
+      minimo: string;
+      maximo: string | null;
+      descricao: string;
+      limiteDiario: string | null;
+      maxPorHora: number | null;
+    };
+  };
+};
+
+const brl = (v: string) =>
+  'R$ ' +
+  Number(v).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+/** "2.5000" → "2,5%" — sem zeros à toa, que só poluem a leitura da taxa. */
+const percentual = (v: string) => {
+  const n = Number(v);
+  return `${n.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}%`;
+};
+
+/**
+ * Taxa fixa zerada é o caso comum: escrever "+ R$ 0,00" em toda linha faria o
+ * cliente procurar uma cobrança que não existe.
+ */
+function taxaTexto(percent: string, fixa: string) {
+  const temFixa = Number(fixa) > 0;
+  const temPercent = Number(percent) > 0;
+  if (!temFixa && !temPercent) return 'sem taxa';
+  if (!temFixa) return percentual(percent);
+  if (!temPercent) return brl(fixa);
+  return `${percentual(percent)} + ${brl(fixa)}`;
+}
+
+/**
+ * Condições comerciais da conta — taxa e limites por operação.
+ *
+ * Existe porque esses números eram invisíveis para quem paga por eles: o
+ * cliente só descobria o teto quando uma venda era recusada, e a taxa
+ * conferindo o líquido no extrato. A frase da faixa vem PRONTA da API, a mesma
+ * usada na recusa, para tela e erro nunca divergirem.
+ */
+function CondicoesComerciais() {
+  const { token } = useAuth();
+  const { data, isLoading, isError } = useQuery<Condicoes>({
+    queryKey: ['conta-condicoes'],
+    queryFn: () => api('/painel/conta/condicoes', { token: token! }),
+    enabled: !!token,
+  });
+
+  const linhas = data
+    ? [
+        {
+          rotulo: 'Taxa por venda (PIX recebido)',
+          valor: taxaTexto(
+            data.taxas.pixEntradaPercentual,
+            data.taxas.pixEntradaFixa,
+          ),
+        },
+        {
+          rotulo: 'Taxa por saque (PIX enviado)',
+          valor: taxaTexto(
+            data.taxas.pixSaidaPercentual,
+            data.taxas.pixSaidaFixa,
+          ),
+        },
+        {
+          rotulo: 'Valor por cobrança',
+          valor: `${brl(data.limites.cobranca.minimo)} a ${brl(data.limites.cobranca.maximo)}`,
+        },
+        {
+          rotulo: 'Valor por saque',
+          valor: data.limites.saque.maximo
+            ? `${brl(data.limites.saque.minimo)} a ${brl(data.limites.saque.maximo)}`
+            : `a partir de ${brl(data.limites.saque.minimo)}`,
+        },
+        ...(data.limites.saque.limiteDiario
+          ? [
+              {
+                rotulo: 'Máximo de saques por dia',
+                valor: brl(data.limites.saque.limiteDiario),
+              },
+            ]
+          : []),
+        ...(data.limites.saque.maxPorHora
+          ? [
+              {
+                rotulo: 'Saques por hora',
+                valor: `até ${data.limites.saque.maxPorHora}`,
+              },
+            ]
+          : []),
+      ]
+    : [];
+
+  return (
+    <Cartao
+      icone={Percent}
+      titulo="Taxas e limites"
+      descricao="O que é cobrado e quanto vale cada operação nesta conta."
+      // O porquê fica no tooltip: quem já sabe lê só os números, e o cartão
+      // não carrega um parágrafo permanente que ninguém relê.
+      acessorio={
+        <Ajuda texto="Valor fora dessas faixas é recusado na hora, no painel e na API, com a faixa aceita na resposta. Taxa e limite vêm do seu contrato — para alterar, fale com o suporte." />
+      }
+    >
+      {isLoading && <p className="text-sm opacity-60">Carregando…</p>}
+      {isError && (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          Não foi possível carregar suas condições. Recarregue a página.
+        </p>
+      )}
+      {data && (
+        <>
+          <dl className="space-y-2.5">
+            {linhas.map((l) => (
+              <div
+                key={l.rotulo}
+                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5"
+              >
+                <dt className="text-xs uppercase tracking-wide opacity-50">
+                  {l.rotulo}
+                </dt>
+                <dd className="min-w-0 text-sm font-medium">{l.valor}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
     </Cartao>
   );
 }
@@ -685,21 +843,26 @@ function AlteracaoSenha() {
           </label>
         </div>
 
-        <ul className="grid gap-1.5 rounded-xl bg-ink-800/[0.03] p-3 sm:grid-cols-2 sm:gap-x-5 dark:bg-white/[0.03]">
-          {REGRAS_SENHA.map((r) => (
+        {/* A lista só existe enquanto ela é útil: quem ainda não digitou nada
+            não tem o que conferir, e seis linhas paradas eram metade da altura
+            do cartão. Some de novo quando os campos são limpos. */}
+        {(novaSenha.length > 0 || confirmacao.length > 0) && (
+          <ul className="grid gap-1.5 rounded-xl bg-ink-800/[0.03] p-3 sm:grid-cols-2 sm:gap-x-5 dark:bg-white/[0.03]">
+            {REGRAS_SENHA.map((r) => (
+              <Regra
+                key={r.id}
+                texto={r.texto}
+                ok={r.ok(novaSenha)}
+                neutro={novaSenha.length === 0}
+              />
+            ))}
             <Regra
-              key={r.id}
-              texto={r.texto}
-              ok={r.ok(novaSenha)}
-              neutro={novaSenha.length === 0}
+              texto="As senhas informadas precisam ser iguais"
+              ok={iguais}
+              neutro={confirmacao.length === 0}
             />
-          ))}
-          <Regra
-            texto="As senhas informadas precisam ser iguais"
-            ok={iguais}
-            neutro={confirmacao.length === 0}
-          />
-        </ul>
+          </ul>
+        )}
 
         {ok && <Aviso tipo="ok">{ok}</Aviso>}
         {erro && <Aviso tipo="erro">{erro}</Aviso>}
@@ -795,82 +958,92 @@ function EncerrarConta() {
         )
       }
     >
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="space-y-3 text-sm">
-          <p className="opacity-80">
-            Ao encerrar sua conta no {BRAND.nome} você perde o acesso ao sistema: o
-            painel deixa de abrir, as credenciais de API são revogadas e os webhooks
-            param de ser entregues.
-          </p>
-          <p className="rounded-xl bg-ink-800/[0.03] px-3 py-2.5 text-xs leading-relaxed dark:bg-white/[0.03]">
-            <strong>Seus dados não são apagados.</strong> Transações, cobranças,
-            saques e documentos continuam guardados — é o que sustenta obrigação
-            fiscal e qualquer contestação futura. Para voltar a operar, fale com o
-            suporte: a reabertura é feita por lá, sem novo cadastro.
-          </p>
-          <p className="text-xs opacity-60">
-            Dúvidas: {BRAND.email} · WhatsApp {BRAND.whatsapp}
-          </p>
-        </div>
+      {/* A lista de requisitos NÃO fica na tela: ela só interessa a quem
+          decidiu encerrar, e ocupava meio cartão para todo mundo o tempo
+          inteiro. Agora abre junto com o modal, no momento em que a pessoa
+          clica — e o selo do cabeçalho já anuncia que há pendência. */}
+      <div className="space-y-3 text-sm">
+        <p className="opacity-80">
+          Ao encerrar sua conta no {BRAND.nome} você perde o acesso ao sistema: o
+          painel deixa de abrir, as credenciais de API são revogadas e os webhooks
+          param de ser entregues.{' '}
+          <Ajuda texto={`Seus dados não são apagados. Transações, cobranças, saques e documentos continuam guardados — é o que sustenta obrigação fiscal e qualquer contestação futura. Para voltar a operar, fale com o suporte (${BRAND.email} · ${BRAND.whatsapp}): a reabertura é feita por lá, sem novo cadastro.`} />
+        </p>
 
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide opacity-60">
-            Para encerrar é necessário
-          </h3>
-          {isLoading && (
-            <p className="mt-2 text-sm opacity-60">Verificando pendências…</p>
-          )}
-          <ul className="mt-2.5 space-y-2">
-            {data?.requisitos.map((r) => (
-              <li key={r.id} className="text-sm leading-snug">
-                <span
-                  className={`flex items-start gap-2 ${
-                    r.atendido
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-red-600 dark:text-red-400'
-                  }`}
-                >
-                  {r.atendido ? (
-                    <Check
-                      className="mt-0.5 h-4 w-4 shrink-0"
-                      strokeWidth={2.5}
-                      aria-hidden
-                    />
-                  ) : (
-                    <X
-                      className="mt-0.5 h-4 w-4 shrink-0"
-                      strokeWidth={2.5}
-                      aria-hidden
-                    />
-                  )}
-                  {r.texto}
-                </span>
-                {r.detalhe && (
-                  <span className="mt-0.5 block pl-6 text-xs opacity-60">
-                    {r.detalhe}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-
-          <button
-            type="button"
-            disabled={!data?.podeEncerrar}
-            onClick={() => setAberto(true)}
-            className="mt-4 w-full rounded-lg border border-red-500/50 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-400"
-          >
-            Encerrar conta
-          </button>
-          {data && !data.podeEncerrar && (
-            <p className="mt-2 text-center text-xs opacity-55">
-              Resolva as pendências acima para liberar o encerramento.
-            </p>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => setAberto(true)}
+          className="w-full rounded-lg border border-red-500/50 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-500/10 dark:text-red-400 sm:w-auto"
+        >
+          Encerrar conta
+        </button>
       </div>
 
-      <Modal open={aberto} onClose={() => setAberto(false)} title="Encerrar conta">
+      <Modal
+        open={aberto}
+        onClose={() => setAberto(false)}
+        title="Encerrar conta"
+      >
+        {/*
+          Duas telas no mesmo modal, decididas pela elegibilidade:
+          - com pendência, mostra O QUE FALTA (o formulário nem aparece, porque
+            enviá-lo só devolveria erro do servidor);
+          - liberada, vai direto ao formulário.
+        */}
+        {isLoading && <p className="text-sm opacity-60">Verificando pendências…</p>}
+
+        {data && !data.podeEncerrar && (
+          <div className="space-y-3">
+            <p className="text-sm opacity-80">
+              Antes de encerrar, é necessário resolver{' '}
+              {pendentes === 1 ? 'esta pendência' : `estas ${pendentes} pendências`}:
+            </p>
+            <ul className="space-y-2">
+              {data.requisitos.map((r) => (
+                <li key={r.id} className="text-sm leading-snug">
+                  <span
+                    className={`flex items-start gap-2 ${
+                      r.atendido
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    {r.atendido ? (
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0"
+                        strokeWidth={2.5}
+                        aria-hidden
+                      />
+                    ) : (
+                      <X
+                        className="mt-0.5 h-4 w-4 shrink-0"
+                        strokeWidth={2.5}
+                        aria-hidden
+                      />
+                    )}
+                    <span className="min-w-0">{r.texto}</span>
+                  </span>
+                  {r.detalhe && (
+                    <span className="mt-0.5 block pl-6 text-xs opacity-60">
+                      {r.detalhe}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setAberto(false)}
+                className="rounded-lg border border-ink-800/15 px-4 py-2 text-sm font-medium transition hover:bg-ink-800/5 dark:border-white/15 dark:hover:bg-white/5"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {data?.podeEncerrar && (
         <form onSubmit={encerrar} className="space-y-3">
           <p className="flex items-start gap-2 rounded-lg bg-red-500/10 px-3 py-2.5 text-sm text-red-700 dark:text-red-300">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
@@ -941,6 +1114,7 @@ function EncerrarConta() {
             desabilitado={!podeConfirmar}
           />
         </form>
+        )}
       </Modal>
     </Cartao>
   );
@@ -997,15 +1171,23 @@ export default function ConfigPage() {
             <Seguranca />
           </div>
         )}
+        {/*
+          Duas colunas que terminam juntas, e não uma faixa solta no rodapé.
+          O encerramento ENCOLHEU (a lista de requisitos foi para o modal) e a
+          senha também (as regras só aparecem ao digitar), então manter o
+          encerramento em `col-span-12` deixava um vazio alto à direita e um
+          cartão sozinho embaixo, sem motivo. Empilhado sob a senha, ele ocupa
+          exatamente esse vazio.
+        */}
         <div className="flex flex-col gap-4 lg:col-span-5">
           <Perfil />
           {!segurancaNoTopo && <Seguranca />}
           <Aparencia />
+          {/* Taxa e limite são condição DESTA conta: ficam junto de quem ela é. */}
+          <CondicoesComerciais />
         </div>
-        <div className="lg:col-span-7">
+        <div className="flex flex-col gap-4 lg:col-span-7">
           <AlteracaoSenha />
-        </div>
-        <div className="lg:col-span-12">
           <EncerrarConta />
         </div>
       </div>

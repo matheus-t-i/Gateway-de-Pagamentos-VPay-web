@@ -6,6 +6,7 @@ import { Shell } from '@/components/shell';
 import { BarraFiltros, FiltroData, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatarDataHora } from '@/lib/fuso';
 
 type Persistencia = {
   id: string;
@@ -165,7 +166,7 @@ export default function AuditoriaPage() {
                   (q.data?.itens as Persistencia[] | undefined)?.map((r) => (
                     <Fragment key={r.id}>
                       <tr className="border-b border-ink-800/5 dark:border-white/5">
-                        <td className="px-4 py-3 text-xs">{new Date(r.quando).toLocaleString('pt-BR')}</td>
+                        <td className="px-4 py-3 text-xs">{formatarDataHora(r.quando)}</td>
                         <td className="px-4 py-3">{r.ator}</td>
                         <td className="px-4 py-3 font-mono text-xs">{r.acao}</td>
                         <td className="px-4 py-3 text-xs">{r.tabela ?? '—'}</td>
@@ -216,7 +217,7 @@ export default function AuditoriaPage() {
                 {fonte === 'acesso' &&
                   (q.data?.itens as Acesso[] | undefined)?.map((a) => (
                     <tr key={a.id} className="border-b border-ink-800/5 dark:border-white/5">
-                      <td className="px-4 py-3 text-xs">{new Date(a.quando).toLocaleString('pt-BR')}</td>
+                      <td className="px-4 py-3 text-xs">{formatarDataHora(a.quando)}</td>
                       <td className="px-4 py-3">{a.emailInformado ?? '—'}</td>
                       <td className="px-4 py-3 text-xs opacity-70">{a.usuario ?? '—'}</td>
                       <td className="px-4 py-3 font-mono text-xs">{a.ip ?? '—'}</td>

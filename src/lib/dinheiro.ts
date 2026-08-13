@@ -27,33 +27,9 @@ export function formatarBrl(decimal: string): string {
   });
 }
 
-/** Mensagem de validação do valor de saque, ou null se ok / ainda vazio. */
-export function mensagemValorSaque(params: {
-  valor: string;
-  saldoDisponivel?: string;
-  ticketMinimoPixSaida?: string;
-  ticketMaximoPixSaida?: string | null;
-}): string | null {
-  const v = centavosDe(params.valor);
-  if (!params.valor || !Number.isFinite(v) || v <= 0) return null;
-
-  if (params.ticketMinimoPixSaida) {
-    const min = centavosDe(params.ticketMinimoPixSaida);
-    if (Number.isFinite(min) && min > 0 && v < min) {
-      return `Valor abaixo do mínimo (${formatarBrl(params.ticketMinimoPixSaida)})`;
-    }
-  }
-  if (params.ticketMaximoPixSaida) {
-    const max = centavosDe(params.ticketMaximoPixSaida);
-    if (Number.isFinite(max) && max > 0 && v > max) {
-      return `Valor acima do máximo (${formatarBrl(params.ticketMaximoPixSaida)})`;
-    }
-  }
-  if (params.saldoDisponivel != null && params.saldoDisponivel !== '') {
-    const s = centavosDe(params.saldoDisponivel);
-    if (Number.isFinite(s) && v > s) {
-      return 'Valor maior que o saldo disponível';
-    }
-  }
-  return null;
-}
+/**
+ * `mensagemValorSaque` mudou de casa: agora é `@/lib/limites-valor`, junto da
+ * frase espelhada da API — a mensagem de limite tem que ser idêntica à da
+ * recusa do servidor, e mantê-la aqui deixava as duas versões livres para
+ * divergir.
+ */

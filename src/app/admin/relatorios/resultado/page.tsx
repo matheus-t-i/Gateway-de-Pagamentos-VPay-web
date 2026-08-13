@@ -6,6 +6,7 @@ import { Shell } from '@/components/shell';
 import { BarraFiltros, FiltroData, FiltroSelect, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { hojeISO } from '@/lib/fuso';
 
 const brl = (v: string | number) =>
   'R$ ' +
@@ -15,11 +16,6 @@ const brl = (v: string | number) =>
   });
 const pct = (v: string | number) =>
   Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-
-const hojeISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 type Detalhe = {
   tipo: string;

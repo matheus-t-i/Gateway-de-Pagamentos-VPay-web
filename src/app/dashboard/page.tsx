@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowDownToLine,
@@ -32,6 +32,8 @@ import { BadgeSituacao } from '@/components/status';
 import { DepositoModal, SaqueModal } from '@/components/conta-acoes';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { centavosDe, formatarBrl } from '@/lib/dinheiro';
+import { formatarDataCurta, formatarDataHora, formatarHora } from '@/lib/fuso';
 import { PERMISSOES } from '@/lib/permissoes';
 
 const RANGES = [
@@ -41,8 +43,27 @@ const RANGES = [
   { v: '1d', label: 'Hoje' },
 ] as const;
 
+/** Granularidade do gráfico nas últimas 24h. 7d/30d/mês vão por dia. */
+const INTERVALOS_24H = [
+  { v: '1h', label: 'Por hora' },
+  { v: '30m', label: '30 min' },
+  { v: '15m', label: '15 min' },
+] as const;
+
+type Intervalo24h = (typeof INTERVALOS_24H)[number]['v'];
+
+const LS_INTERVALO = 'vpay_dashboard_intervalo';
+
+function lerIntervaloSalvo(): Intervalo24h {
+  if (typeof window === 'undefined') return '1h';
+  const v = window.localStorage.getItem(LS_INTERVALO);
+  if (v === '30m' || v === '15m' || v === '1h') return v;
+  return '1h';
+}
+
 type Painel = {
   range: string;
+  intervalo?: string;
   periodo: { inicio: string; fim: string; dias: number };
   saldoDisponivel: string;
   totais: { gerados: string; pagos: string; meds: string };
@@ -58,7 +79,13 @@ type Painel = {
     ticketMedio: string;
     conversao: number;
   };
-  serie: Array<{ ts: string; geradas: string; aprovadas: string }>;
+  serie: Array<{
+    ts: string;
+    label: string;
+    geradas: string;
+    aprovadas: string;
+    pendentes: string;
+  }>;
   recentes: Array<{
     idTransacao: string;
     cliente: string;
@@ -91,26 +118,28 @@ type Painel = {
   };
 };
 
-const brl = (v: string | number) =>
-  'R$ ' +
-  Number(v).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+function reaisDe(decimal: string): number {
+  const c = centavosDe(decimal);
+  return Number.isFinite(c) ? c / 100 : 0;
+}
 
-const data = (v: string | Date) =>
-  new Date(v).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+function brl(v: string | number) {
+  if (typeof v === 'string') return formatarBrl(v);
+  const c = Math.round(v * 100);
+  const sinal = c < 0 ? '-' : '';
+  const abs = Math.abs(c);
+  return formatarBrl(
+    `${sinal}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`,
+  );
+}
+
+const data = (v: string | Date) => formatarDataCurta(v);
 
 /** Texto do período coberto pelos números da tela ("01/08 → 05/08 · 5 dias"). */
 function rotuloPeriodo(p: Painel['periodo'] | undefined, range: string) {
   if (!p) return '';
   if (range === '1d') {
-    const h = (v: string) =>
-      new Date(v).toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    return `${data(p.inicio)} ${h(p.inicio)} → ${data(p.fim)} ${h(p.fim)} · últimas 24h`;
+    return `${data(p.inicio)} ${formatarHora(p.inicio)} → ${data(p.fim)} ${formatarHora(p.fim)} · últimas 24h`;
   }
   return `${data(p.inicio)} → ${data(p.fim)} · ${p.dias} dias`;
 }
@@ -149,15 +178,6 @@ function Variacao({ pct }: { pct: number | null }) {
   );
 }
 
-function rotuloSerie(ts: string, range: string) {
-  if (range === '1d') {
-    const h = ts.split('T')[1] ?? '0';
-    return `${String(h).padStart(2, '0')}h`;
-  }
-  const [, m, d] = (ts.split('T')[0] ?? '').split('-');
-  return `${d}/${Number(m) + 1}`;
-}
-
 function Painel({
   children,
   className = '',
@@ -189,28 +209,78 @@ const COR_PAGO = '#10b981';
 export default function DashboardPage() {
   const { token, pode } = useAuth();
   const [range, setRange] = useState<string>('1d');
+  const [intervalo, setIntervalo] = useState<Intervalo24h>('1h');
   const [mostrarSaldo, setMostrarSaldo] = useState(true);
   const [saqueAberto, setSaqueAberto] = useState(false);
   const [depositoAberto, setDepositoAberto] = useState(false);
+  const [estreito, setEstreito] = useState(true);
+
+  useEffect(() => {
+    setIntervalo(lerIntervaloSalvo());
+  }, []);
+
+  useEffect(() => {
+    const m = window.matchMedia('(max-width: 639px)');
+    const atualizar = () => setEstreito(m.matches);
+    atualizar();
+    m.addEventListener('change', atualizar);
+    return () => m.removeEventListener('change', atualizar);
+  }, []);
+
+  const escolherIntervalo = (v: Intervalo24h) => {
+    setIntervalo(v);
+    window.localStorage.setItem(LS_INTERVALO, v);
+  };
 
   const painel = useQuery({
-    queryKey: ['painel-dashboard', range],
+    queryKey: ['painel-dashboard', range, range === '1d' ? intervalo : 'dia'],
     enabled: !!token,
     refetchInterval: 10_000,
-    queryFn: () => api<Painel>(`/painel/dashboard?range=${range}`, { token: token! }),
+    queryFn: () => {
+      const q = new URLSearchParams({ range });
+      if (range === '1d') q.set('intervalo', intervalo);
+      return api<Painel>(`/painel/dashboard?${q.toString()}`, { token: token! });
+    },
   });
 
   const d = painel.data;
-  const chart =
-    d?.serie.map((s) => {
-      const geradas = Number(s.geradas);
-      const pagas = Number(s.aprovadas);
-      return {
-        label: rotuloSerie(s.ts, d.range),
-        pendentes: Math.max(0, geradas - pagas),
-        pagas,
-      };
-    }) ?? [];
+  const chart = useMemo(
+    () =>
+      (d?.serie ?? []).map((s) => ({
+        ts: s.ts,
+        label: s.label,
+        pendentes: reaisDe(s.pendentes ?? '0'),
+        pagas: reaisDe(s.aprovadas),
+      })),
+    [d?.serie],
+  );
+
+  const ticksEixo = useMemo(() => {
+    if (chart.length === 0) return [];
+    const horaCheia = chart.filter(
+      (p) => p.label.endsWith('h') || p.label.endsWith(':00'),
+    );
+    const base = range === '1d' && intervalo !== '1h' ? horaCheia : chart;
+    const passo =
+      range !== '1d' && base.length > 16
+        ? estreito
+          ? 4
+          : 2
+        : estreito && range === '1d'
+          ? 3
+          : 1;
+    if (passo <= 1) return base.map((p) => p.ts);
+    return base
+      .filter((_, i) => i % passo === 0 || i === base.length - 1)
+      .map((p) => p.ts);
+  }, [chart, range, intervalo, estreito]);
+
+  const rotuloPorTs = useMemo(
+    () => new Map(chart.map((p) => [p.ts, p.label])),
+    [chart],
+  );
+
+  const chartComScroll = range === '1d' && intervalo !== '1h';
 
   const contaAtiva = d?.conta.situacao === 'ATIVO';
   const conversaoPct = ((d?.conversao ?? 0) * 100).toFixed(1).replace('.', ',');
@@ -492,66 +562,115 @@ export default function DashboardPage() {
                 {rotuloPeriodo(d?.periodo, d?.range ?? range)}
               </p>
             </div>
-            <div className="flex items-center gap-3 text-[11px] opacity-70">
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ background: COR_PENDENTE }}
-                />
-                Pendentes
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ background: COR_PAGO }}
-                />
-                Pagas
-              </span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {range === '1d' && (
+                <div
+                  role="group"
+                  aria-label="Intervalo do gráfico"
+                  className="flex rounded-full border border-ink-800/10 bg-ink-800/[0.03] p-0.5 dark:border-white/10 dark:bg-white/[0.04]"
+                >
+                  {INTERVALOS_24H.map((op) => (
+                    <button
+                      key={op.v}
+                      type="button"
+                      onClick={() => escolherIntervalo(op.v)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                        intervalo === op.v
+                          ? 'bg-white text-ink-900 shadow-sm dark:bg-ink-800 dark:text-white'
+                          : 'opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-3 text-[11px] opacity-70">
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ background: COR_PENDENTE }}
+                  />
+                  Pendentes
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ background: COR_PAGO }}
+                  />
+                  Pagas
+                </span>
+              </div>
             </div>
           </div>
-          <div className="mt-3 h-48 sm:h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chart} margin={{ left: -14, right: 8, top: 6, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="fillPendentes" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={COR_PENDENTE} stopOpacity={0.28} />
-                    <stop offset="100%" stopColor={COR_PENDENTE} stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="fillPagas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={COR_PAGO} stopOpacity={0.28} />
-                    <stop offset="100%" stopColor={COR_PAGO} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
-                <XAxis dataKey="label" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  width={64}
-                  tickFormatter={(v) => brl(v).replace('R$ ', 'R$')}
-                />
-                <Tooltip formatter={(v) => brl(Number(v))} contentStyle={TOOLTIP_STYLE} />
-                <Area
-                  type="monotone"
-                  dataKey="pendentes"
-                  name="Pendentes"
-                  stroke={COR_PENDENTE}
-                  strokeWidth={2}
-                  fill="url(#fillPendentes)"
-                  dot={false}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="pagas"
-                  name="Pagas"
-                  stroke={COR_PAGO}
-                  strokeWidth={2}
-                  fill="url(#fillPagas)"
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className={`mt-3 ${chartComScroll ? 'overflow-x-auto' : ''}`}>
+            <div
+              className={`h-48 sm:h-56 ${
+                chartComScroll
+                  ? intervalo === '15m'
+                    ? 'min-w-[720px]'
+                    : 'min-w-[560px]'
+                  : 'w-full'
+              }`}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chart} margin={{ left: -14, right: 8, top: 6, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fillPendentes" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={COR_PENDENTE} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={COR_PENDENTE} stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="fillPagas" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={COR_PAGO} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={COR_PAGO} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+                  <XAxis
+                    dataKey="ts"
+                    ticks={ticksEixo}
+                    interval={0}
+                    minTickGap={4}
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(ts: string) => rotuloPorTs.get(ts) ?? ''}
+                  />
+                  <YAxis
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    width={64}
+                    tickFormatter={(v) => brl(v)}
+                  />
+                  <Tooltip
+                    formatter={(v) => brl(Number(v))}
+                    labelFormatter={(_, payload) =>
+                      (payload?.[0]?.payload as { label?: string } | undefined)?.label ?? ''
+                    }
+                    contentStyle={TOOLTIP_STYLE}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="pendentes"
+                    name="Pendentes"
+                    stroke={COR_PENDENTE}
+                    strokeWidth={2}
+                    fill="url(#fillPendentes)"
+                    dot={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="pagas"
+                    name="Pagas"
+                    stroke={COR_PAGO}
+                    strokeWidth={2}
+                    fill="url(#fillPagas)"
+                    dot={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </Painel>
       </div>
@@ -602,7 +721,7 @@ export default function DashboardPage() {
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-xs opacity-65">
-                    {new Date(t.criadoEm).toLocaleString('pt-BR')}
+                    {formatarDataHora(t.criadoEm)}
                   </td>
                   <td className="px-4 py-2.5 font-medium tabular-nums">{brl(t.valor)}</td>
                   <td className="px-4 py-2.5">{t.produto}</td>
@@ -637,7 +756,7 @@ export default function DashboardPage() {
               </div>
               <div className="mt-2 flex items-center justify-between gap-2">
                 <p className="text-[11px] opacity-50">
-                  {new Date(t.criadoEm).toLocaleString('pt-BR', {
+                  {formatarDataHora(t.criadoEm, {
                     day: '2-digit',
                     month: '2-digit',
                     hour: '2-digit',

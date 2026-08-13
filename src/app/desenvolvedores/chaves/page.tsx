@@ -19,6 +19,7 @@ import { CATALOGO_ESCOPOS } from '@/lib/escopos';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { confirmarAcao } from '@/lib/dialogos';
+import { formatarDataHora } from '@/lib/fuso';
 
 type Credencial = {
   id: string;
@@ -483,7 +484,7 @@ export default function ChavesApiPage() {
               {criada.segredoAnteriorAtivoAte && (
                 <p className="mt-3 text-xs text-amber-800 dark:text-amber-300">
                   O segredo anterior <strong>continua funcionando</strong> até{' '}
-                  {new Date(criada.segredoAnteriorAtivoAte).toLocaleString('pt-BR')}.
+                  {formatarDataHora(criada.segredoAnteriorAtivoAte)}.
                   Atualize suas aplicações e depois use{' '}
                   <strong>Encerrar janela</strong> para desativá-lo na hora.
                 </p>

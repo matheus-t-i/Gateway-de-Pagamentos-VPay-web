@@ -38,6 +38,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Marca } from '@/components/marca';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatarHora } from '@/lib/fuso';
 import { PERMISSOES, permissaoDaRota, type CodigoPermissao } from '@/lib/permissoes';
 
 type Icone = ComponentType<LucideProps>;
@@ -447,9 +448,7 @@ function ContadorSessao() {
 
   return (
     <span
-      title={`Sua sessão expira em ${formatarRestante(restante)} (${new Date(
-        expiraEm,
-      ).toLocaleTimeString('pt-BR')})`}
+      title={`Sua sessão expira em ${formatarRestante(restante)} (${formatarHora(expiraEm)})`}
       className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs tabular-nums sm:px-3 ${cor}`}
     >
       {/* Sem o ícone no celular: o cabeçalho (relógio + 2FA + usuário) estourava

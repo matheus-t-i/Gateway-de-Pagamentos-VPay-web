@@ -20,6 +20,7 @@ import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { confirmarAcao } from '@/lib/dialogos';
+import { formatarDataHora } from '@/lib/fuso';
 import {
   type AppIntegracao,
   eventosPadraoDoApp,
@@ -57,7 +58,7 @@ type Envio = {
 };
 
 function dataHora(valor: string) {
-  return new Date(valor).toLocaleString('pt-BR');
+  return formatarDataHora(valor);
 }
 
 /** Mensagem legível do erro da API (JSON do Nest/Zod ou texto puro). */

@@ -16,6 +16,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
+import { formatarDataHora } from '@/lib/fuso';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
@@ -109,8 +110,7 @@ const brl = (v: string | null) =>
         maximumFractionDigits: 2,
       });
 
-const dataHora = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('pt-BR') : '—';
+const dataHora = (iso: string | null) => formatarDataHora(iso);
 
 const corSituacao = (s: string) => {
   if (s === 'ATIVO')

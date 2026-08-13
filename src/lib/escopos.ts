@@ -15,6 +15,7 @@ export const ESCOPOS_API = {
   PIX_COBRANCA_CRIAR: 'pix.cobranca.criar',
   PIX_SAQUE_CRIAR: 'pix.saque.criar',
   TRANSACOES_LER: 'transacoes.ler',
+  SALDO_LER: 'saldo.ler',
 } as const;
 
 export type EscopoApi = (typeof ESCOPOS_API)[keyof typeof ESCOPOS_API];
@@ -40,5 +41,11 @@ export const CATALOGO_ESCOPOS: Array<{
     rotulo: 'Consultar transações',
     descricao:
       'GET /v1/pix/transacoes/{id} — inclui dados do pagador, tarifa e liquidação.',
+  },
+  {
+    codigo: ESCOPOS_API.SALDO_LER,
+    rotulo: 'Consultar saldo',
+    descricao:
+      'GET /v1/saldo — saldo da conta (disponível, a liberar, reservado e bloqueado).',
   },
 ];

@@ -28,6 +28,7 @@ import {
   FiltroTexto,
 } from '@/components/tabela';
 import { api } from '@/lib/api';
+import { hojeISO } from '@/lib/fuso';
 import { useAuth } from '@/lib/auth';
 
 const brl = (v: string | number) =>
@@ -44,11 +45,6 @@ const pct = (v: string | number) =>
   }) + '%';
 
 const qtd = (v: number) => v.toLocaleString('pt-BR');
-
-const hojeISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 const diasEntre = (ini: string, fim: string) => {
   const a = Date.parse(ini + 'T00:00:00Z');

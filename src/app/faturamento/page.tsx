@@ -26,6 +26,7 @@ import {
 import { Shell } from '@/components/shell';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { diasRestantesNoMesBrasilia, FUSO_BRASILIA } from '@/lib/fuso';
 
 type Marco = {
   codigo: string;
@@ -228,8 +229,7 @@ export default function FaturamentoPage() {
     const restante = Number(data.proximoMarco.restante);
     const media = Number(data.mediaDiaria);
     const hoje = new Date();
-    const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
-    const diasRestantes = Math.max(1, fimMes - hoje.getDate() + 1);
+    const diasRestantes = diasRestantesNoMesBrasilia(hoje);
     const porDia = restante / diasRestantes;
 
     if (media > 0 && porDia <= media * 2) {
@@ -245,7 +245,7 @@ export default function FaturamentoPage() {
         tipo: 'projecao' as const,
         texto: `No seu ritmo atual (${brl(media)}/dia), você chega ao ${data.proximoMarco.nome} em ${alvo.toLocaleDateString(
           'pt-BR',
-          { month: 'long', year: 'numeric' },
+          { timeZone: FUSO_BRASILIA, month: 'long', year: 'numeric' },
         )} — acelere e antecipe essa data`,
       };
     }

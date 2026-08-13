@@ -10,6 +10,7 @@ import { BotaoReenviarWebhook } from '@/components/reenviar-webhook';
 import { podeReenviarCallback } from '@/lib/callback-lojista';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatarDataHora } from '@/lib/fuso';
 import { PERMISSOES } from '@/lib/permissoes';
 
 const brl = (v: string | number) =>
@@ -335,7 +336,7 @@ function BotaoDetalhe({ item }: { item: Item }) {
                     >
                       <p className="text-xs">
                         <span className="font-mono">{w.tipoEvento}</span> ·{' '}
-                        {new Date(w.recebidoEm).toLocaleString('pt-BR')} · {w.situacao}
+                        {formatarDataHora(w.recebidoEm)} · {w.situacao}
                       </p>
                       <BlocoJson dado={w.conteudo} />
                     </div>
@@ -437,13 +438,13 @@ export function RelatorioTransacoes({
         </div>
       ),
     },
-    { chave: 'criadoEm', titulo: 'Data', render: (t) => new Date(t.criadoEm).toLocaleString('pt-BR') },
+    { chave: 'criadoEm', titulo: 'Data', render: (t) => formatarDataHora(t.criadoEm) },
     {
       chave: 'dataPagamento',
       titulo: 'Data pagamento',
       render: (t) =>
         t.dataPagamento ? (
-          new Date(t.dataPagamento).toLocaleString('pt-BR')
+          formatarDataHora(t.dataPagamento)
         ) : (
           <span className="opacity-40">—</span>
         ),

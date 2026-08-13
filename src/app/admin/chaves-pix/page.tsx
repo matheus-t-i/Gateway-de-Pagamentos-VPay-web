@@ -19,6 +19,7 @@ import {
   mascaraCpf,
   normalizarDocumento,
 } from '@/lib/documento';
+import { formatarData } from '@/lib/fuso';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
@@ -303,7 +304,7 @@ function AlertasDaChave({ c }: { c: ChavePix }) {
           </p>
           {decisoesAnteriores.slice(0, 2).map((h, i) => (
             <p key={i} className="mt-0.5 opacity-80">
-              {new Date(h.criadoEm).toLocaleDateString('pt-BR')} · {h.novaSituacao}
+              {formatarData(h.criadoEm)} · {h.novaSituacao}
               {h.origem === 'ADMIN'
                 ? ' · administrador'
                 : h.origem === 'CLIENTE'
@@ -461,7 +462,7 @@ export default function AdminChavesPixPage() {
           <p className="font-medium">{c.cliente.nome}</p>
           <p className="text-xs opacity-60">{formatarDocumento(c.cliente.cpfCnpj)}</p>
           <p className="text-xs opacity-60">
-            Solicitado em {new Date(c.criadoEm).toLocaleDateString('pt-BR')}
+            Solicitado em {formatarData(c.criadoEm)}
             {' · '}
             <IdadeSolicitacao desde={c.criadoEm} />
           </p>

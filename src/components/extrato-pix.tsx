@@ -16,6 +16,7 @@ import { BadgeSituacao, BadgeTipoOperacao, rotuloSituacao } from '@/components/s
 import { BotaoReenviarWebhook } from '@/components/reenviar-webhook';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatarData, formatarHora } from '@/lib/fuso';
 import { PERMISSOES } from '@/lib/permissoes';
 import { podeReenviarCallback } from '@/lib/callback-lojista';
 
@@ -154,13 +155,8 @@ export function ExtratoPix({ direcao }: { direcao: 'ENTRADA' | 'SAIDA' }) {
       titulo: 'Data',
       render: (t) => (
         <div className="whitespace-nowrap">
-          <p>{new Date(t.criadoEm).toLocaleDateString('pt-BR')}</p>
-          <p className="text-xs opacity-60">
-            {new Date(t.criadoEm).toLocaleTimeString('pt-BR', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </p>
+          <p>{formatarData(t.criadoEm)}</p>
+          <p className="text-xs opacity-60">{formatarHora(t.criadoEm)}</p>
         </div>
       ),
     },

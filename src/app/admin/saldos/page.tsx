@@ -17,6 +17,7 @@ import { Gatilho, GatilhoModal } from '@/components/gatilho-modal';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { formatarDataHora } from '@/lib/fuso';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 const brl = (v: string | number | null) =>
@@ -28,8 +29,7 @@ const brl = (v: string | number | null) =>
         maximumFractionDigits: 2,
       });
 
-const dataHora = (v: string | null) =>
-  v ? new Date(v).toLocaleString('pt-BR') : '—';
+const dataHora = (v: string | null) => formatarDataHora(v);
 
 type Saldo = {
   contaProvedorId: string;

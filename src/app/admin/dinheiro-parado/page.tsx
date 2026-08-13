@@ -12,6 +12,7 @@ import {
 } from '@/components/tabela';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { formatarDataHora } from '@/lib/fuso';
 
 /**
  * DINHEIRO PARADO — a resposta ao "vou ter que analisar caso a caso".
@@ -32,8 +33,7 @@ const brl = (v: string | number | null) =>
         maximumFractionDigits: 2,
       });
 
-const dataHora = (v: string | null) =>
-  v ? new Date(v).toLocaleString('pt-BR') : '—';
+const dataHora = (v: string | null) => formatarDataHora(v);
 
 /** Idade em dias/horas — urgência visual sem o admin fazer conta. */
 function Idade({ desde }: { desde: string }) {

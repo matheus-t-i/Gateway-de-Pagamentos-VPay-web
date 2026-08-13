@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { formatarDataHora } from '@/lib/fuso';
 
 /**
  * Cores de situação e de sentido do dinheiro, em UM lugar só.
@@ -159,7 +160,7 @@ export function IdadeSolicitacao({ desde }: { desde: string }) {
   return (
     <span
       className={`text-xs font-medium ${cor}`}
-      title={new Date(desde).toLocaleString('pt-BR')}
+      title={formatarDataHora(desde)}
     >
       {texto}
     </span>

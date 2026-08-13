@@ -9,6 +9,7 @@ import { IdadeSolicitacao } from '@/components/status';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
+import { formatarData } from '@/lib/fuso';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { pedirTexto } from '@/lib/dialogos';
@@ -187,7 +188,7 @@ export default function AprovacoesPage() {
                   {u.email} · {formatarDocumento(u.cpfCnpj)}
                 </p>
                 <p className="mt-0.5 text-xs opacity-60">
-                  Solicitado em {new Date(u.criadoEm).toLocaleDateString('pt-BR')}
+                  Solicitado em {formatarData(u.criadoEm)}
                   {' · '}
                   <IdadeSolicitacao desde={u.criadoEm} />
                 </p>

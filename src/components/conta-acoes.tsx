@@ -17,7 +17,15 @@ import {
   type TipoChavePix,
 } from '@/lib/chave-pix';
 import { isCnpj, isCpf, mascaraCnpj, mascaraCpf, normalizarDocumento } from '@/lib/documento';
-import { centavosDe, formatarBrl, mensagemValorSaque } from '@/lib/dinheiro';
+import { centavosDe, formatarBrl } from '@/lib/dinheiro';
+import {
+  faixaPermitidaTexto,
+  mensagemForaDaFaixa,
+  mensagemValorSaque,
+  OPERACAO_LIMITE,
+  type Faixa,
+  type OperacaoLimite,
+} from '@/lib/limites-valor';
 import { CampoChavePix, CampoMoeda } from './campos';
 import { Modal, ModalAcoes } from './modal';
 import { TextoRotulo } from './obrigatorio';
@@ -42,6 +50,48 @@ type SaqueModalProps = ModalProps & {
   ticketMinimoPixSaida?: string;
   ticketMaximoPixSaida?: string | null;
 };
+
+type Condicoes = {
+  limites: {
+    cobranca: { minimo: string; maximo: string };
+    saque: { minimo: string; maximo: string | null };
+  };
+};
+
+/**
+ * Limites da conta, direto da API.
+ *
+ * Os modais NÃO dependem de quem os renderiza para conhecer a faixa: o
+ * `SaqueModal` recebia os tickets por prop e o `ContaAcoes` não passava
+ * nenhum, então o mesmo formulário validava no dashboard e não validava no
+ * menu de ações — a pessoa só descobria o limite no 400. Com a query aqui,
+ * vale igual em qualquer lugar (e o React Query compartilha o resultado com o
+ * cartão da tela de configurações).
+ */
+function useCondicoes(token: string, ativo: boolean) {
+  return useQuery<Condicoes>({
+    queryKey: ['conta-condicoes'],
+    enabled: ativo && !!token,
+    queryFn: () => api('/painel/conta/condicoes', { token }),
+  });
+}
+
+/** Dica do campo: a faixa aceita primeiro, a ajuda de digitação depois. */
+function dicaValor(
+  faixa: Faixa | undefined,
+  operacao: OperacaoLimite,
+  extra?: string,
+) {
+  const digitacao = 'Digite só os números — a vírgula entra sozinha.';
+  const permitido = faixa ? faixaPermitidaTexto(faixa, operacao) : null;
+  return [
+    permitido ? `Aceitamos ${permitido}.` : null,
+    extra,
+    digitacao,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 type ChavePix = {
   idPublico: string;
@@ -131,6 +181,14 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
   const qc = useQueryClient();
   const [valor, setValor] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  const condicoes = useCondicoes(token, open);
+  const faixaCobranca = condicoes.data?.limites.cobranca;
+  // Valor fora da faixa nem sai do painel: mesma frase que a API devolveria.
+  const erroValor = mensagemForaDaFaixa(
+    valor,
+    { minimo: faixaCobranca?.minimo, maximo: faixaCobranca?.maximo },
+    OPERACAO_LIMITE.COBRANCA,
+  );
   const [resp, setResp] = useState<CobrancaResp | null>(null);
   const [copiado, setCopiado] = useState(false);
 
@@ -203,14 +261,21 @@ export function DepositoModal({ open, onClose, token }: ModalProps) {
               setErro(null);
             }}
             className="!max-w-none"
-            dica="Digite só os números — a vírgula entra sozinha."
+            erro={erroValor ?? undefined}
+            dica={dicaValor(
+              faixaCobranca && {
+                minimo: faixaCobranca.minimo,
+                maximo: faixaCobranca.maximo,
+              },
+              OPERACAO_LIMITE.COBRANCA,
+            )}
           />
           {erro && <p className="text-sm text-red-600">{erro}</p>}
           <ModalAcoes
             onCancelar={fechar}
             rotulo="Gerar cobrança"
             pendente={criar.isPending}
-            desabilitado={Number(valor) <= 0}
+            desabilitado={centavosDe(valor) <= 0 || !!erroValor}
           />
         </form>
       ) : pago ? (
@@ -324,11 +389,18 @@ export function SaqueModal({
   const pendentesOuReprovadas = (chaves.data ?? []).filter(
     (c) => c.situacao !== 'APROVADA',
   );
+  // A prop continua valendo como valor inicial (o dashboard já a passa e ela
+  // chega antes desta query), mas a API é a fonte quando responde.
+  const condicoes = useCondicoes(token, open);
+  const faixaSaque = {
+    minimo: condicoes.data?.limites.saque.minimo ?? ticketMinimoPixSaida,
+    maximo: condicoes.data?.limites.saque.maximo ?? ticketMaximoPixSaida,
+  };
   const erroValor = mensagemValorSaque({
     valor,
     saldoDisponivel,
-    ticketMinimoPixSaida,
-    ticketMaximoPixSaida,
+    ticketMinimoPixSaida: faixaSaque.minimo,
+    ticketMaximoPixSaida: faixaSaque.maximo,
   });
   const valorCentavos = centavosDe(valor);
   const valorInvalido =
@@ -476,11 +548,13 @@ export function SaqueModal({
                 }}
                 className="!max-w-none"
                 erro={erroValor ?? undefined}
-                dica={
+                dica={dicaValor(
+                  faixaSaque,
+                  OPERACAO_LIMITE.SAQUE,
                   saldoDisponivel != null && saldoDisponivel !== ''
-                    ? `Saldo disponível: ${formatarBrl(saldoDisponivel)}. Digite só os números — a vírgula entra sozinha.`
-                    : 'Digite só os números — a vírgula entra sozinha.'
-                }
+                    ? `Saldo disponível: ${formatarBrl(saldoDisponivel)}.`
+                    : undefined,
+                )}
               />
               {erro && !novaChave && (
                 <p className="text-sm text-red-600">{erro}</p>

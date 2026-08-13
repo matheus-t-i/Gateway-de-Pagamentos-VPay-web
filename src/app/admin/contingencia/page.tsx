@@ -17,6 +17,7 @@ import {
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { PERMISSOES } from '@/lib/permissoes';
+import { formatarDataHora } from '@/lib/fuso';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 
 type Conta = {
@@ -89,8 +90,7 @@ const corTipo = (t: string) => {
   return 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300';
 };
 
-const dataHora = (v: string | null) =>
-  v ? new Date(v).toLocaleString('pt-BR') : '—';
+const dataHora = (v: string | null) => formatarDataHora(v);
 
 function erroMsg(e: unknown) {
   let m = e instanceof Error ? e.message : 'Falha';

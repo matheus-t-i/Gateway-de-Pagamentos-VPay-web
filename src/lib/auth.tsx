@@ -12,7 +12,6 @@ import { useTheme } from 'next-themes';
 import { api } from './api';
 import { limparCredsOnboarding } from './onboarding';
 import type { CodigoPermissao } from './permissoes';
-import { pedirCodigoTotp } from './step-up-totp';
 
 type Usuario = {
   idPublico: string;
@@ -199,17 +198,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(id);
   }, [expiraEm, logout]);
 
+  /**
+   * Tema NÃO pede 2FA: é preferência visual, e a rota `/auth/me/tema` aceita
+   * só este campo. Antes ia pelo `PATCH /auth/me`, que exige step-up para
+   * proteger telefone/nome fantasia — na prática, trocar claro/escuro pedia o
+   * código do autenticador.
+   */
   const patchTema = useCallback(
     async (tema: Usuario['temaPreferido']) => {
       if (!token) return;
-      const codigoTotp = await pedirCodigoTotp();
-      if (!codigoTotp) return;
       const updated = await api<{ temaPreferido: Usuario['temaPreferido'] }>(
-        '/auth/me',
+        '/auth/me/tema',
         {
           method: 'PATCH',
           token,
-          body: JSON.stringify({ temaPreferido: tema, codigoTotp }),
+          body: JSON.stringify({ temaPreferido: tema }),
         },
       );
       setUsuario((u) => (u ? { ...u, temaPreferido: updated.temaPreferido } : u));

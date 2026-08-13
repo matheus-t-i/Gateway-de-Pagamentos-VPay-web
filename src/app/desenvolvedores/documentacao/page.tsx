@@ -14,6 +14,7 @@ const SECOES = [
   { id: 'cobranca', titulo: 'Criar cobrança (cash-in)' },
   { id: 'saque', titulo: 'Criar saque (cash-out)' },
   { id: 'consultar', titulo: 'Consultar transação' },
+  { id: 'saldo', titulo: 'Consultar saldo' },
   { id: 'webhooks', titulo: 'Webhooks' },
   { id: 'status', titulo: 'Status possíveis' },
   { id: 'erros', titulo: 'Erros' },
@@ -778,6 +779,113 @@ Content-Type: application/json`}</Codigo>
             </Secao>
 
             <Secao
+              id="saldo"
+              titulo="Consultar saldo"
+              descricao="Quanto a conta tem, e quanto ainda está parado — com o motivo de cada retenção."
+            >
+              <Endpoint metodo="GET" caminho={`${API_URL}/v1/saldo`} />
+              <p>
+                Exige o escopo <C>saldo.ler</C> na credencial. Responde sempre a conta
+                dona do token — não existe id de conta na URL. Os números são os{' '}
+                <strong>mesmos</strong> que aparecem no seu painel.
+              </p>
+              <p>
+                Os escopos são definidos <strong>na criação</strong> da chave e não mudam
+                depois. Se a sua chave é anterior a este endpoint, ela não tem{' '}
+                <C>saldo.ler</C> e vai receber <C>403</C>: gere uma chave nova em{' '}
+                <strong>Desenvolvedores → Credenciais</strong> marcando{' '}
+                <em>Consultar saldo</em>.
+              </p>
+
+              <p className="pt-2 font-medium">Exemplo (cURL)</p>
+              <Codigo rotulo="saldo">{`curl ${API_URL}/v1/saldo \\
+  -H "Authorization: Bearer SEU_TOKEN"`}</Codigo>
+
+              <Codigo rotulo="resposta">{`{
+  "saldo": {
+    "disponivel": "1250.00",
+    "aLiberar": "300.00",
+    "reservado": "150.00",
+    "bloqueadoMed": "0.00",
+    "bloqueadoManual": "0.00",
+    "total": "1700.00"
+  },
+  "regras": {
+    "diasLiberacaoSaldo": 2,
+    "percentualReserva": "5.00",
+    "diasRetencaoReserva": 30,
+    "medBloqueiaSaldo": true,
+    "ticketMinimoPixSaida": "1.00",
+    "ticketMaximoPixSaida": null
+  },
+  "consultadoEm": "2026-08-13T20:30:00.000Z"
+}`}</Codigo>
+
+              <p className="pt-2 font-medium">O que é cada saldo</p>
+              <Tabela cabecalho={['Campo', 'O que é']}>
+                <Linha>
+                  <Cel mono>disponivel</Cel>
+                  <Cel>
+                    Livre para sacar agora. É o único que o{' '}
+                    <a className="text-accent underline" href="#saque">
+                      saque
+                    </a>{' '}
+                    consome.
+                  </Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>aLiberar</Cel>
+                  <Cel>
+                    Vendas pagas ainda dentro do prazo de liberação — caem no disponível
+                    em D+<C>diasLiberacaoSaldo</C>. No painel aparece como{' '}
+                    <strong>A liberar</strong>.
+                  </Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>reservado</Cel>
+                  <Cel>
+                    <C>percentualReserva</C> de cada venda, retido por{' '}
+                    <C>diasRetencaoReserva</C> dias como garantia. Volta sozinho ao
+                    disponível no fim do prazo.
+                  </Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>bloqueadoMed</Cel>
+                  <Cel>
+                    Preso por contestação (MED) aguardando análise. Só existe se{' '}
+                    <C>medBloqueiaSaldo</C> for <C>true</C>.
+                  </Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>bloqueadoManual</Cel>
+                  <Cel>Bloqueio administrativo. Se não for zero, fale com o suporte.</Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>total</Cel>
+                  <Cel>Soma dos cinco — tudo que é seu, parado ou não.</Cel>
+                </Linha>
+              </Tabela>
+
+              <p>
+                Valores vêm como <strong>string decimal</strong> com duas casas, igual ao
+                resto da API — some com biblioteca decimal, nunca com <C>float</C>. Conta
+                nova, que ainda não recebeu nenhum crédito, responde tudo{' '}
+                <C>&quot;0.00&quot;</C> (não é erro).
+              </p>
+
+              <Atencao>
+                <strong>Saldo não é confirmação de pagamento.</strong> Para liberar
+                pedido, use o{' '}
+                <a className="text-accent underline" href="#webhooks">
+                  webhook
+                </a>{' '}
+                da venda. Esta consulta é para tesouraria: saber quanto dá para sacar e
+                por que o resto está parado. Não fique consultando em laço — respeite o
+                limite de requisições da sua credencial.
+              </Atencao>
+            </Secao>
+
+            <Secao
               id="webhooks"
               titulo="Webhooks (callbacks)"
               descricao="Avisamos seu sistema a cada mudança de status da operação."
@@ -1084,10 +1192,58 @@ Content-Type: application/json`}</Codigo>
               <Codigo rotulo="demais erros">{`{
   "statusCode": 400,
   "error": "Bad Request",
-  "message": "Valor fora do ticket permitido"
+  "message": "Conta não está ativa."
 }`}</Codigo>
               <p>
                 Trate os dois: teste <C>fieldErrors</C> antes de ler <C>message</C>.
+              </p>
+
+              <p className="pt-2 font-medium">Valor fora do limite da conta</p>
+              <p>
+                Cobrança e saque têm faixa de valor por operação. Fora dela, a resposta
+                diz o que houve <strong>e</strong> o que é aceito — na{' '}
+                <C>message</C> para você mostrar ao seu cliente, e em campos separados
+                para o seu código decidir sem ler texto:
+              </p>
+              <Codigo rotulo="400 — valor fora do limite">{`{
+  "statusCode": 400,
+  "error": "Bad Request",
+  "message": "O valor R$ 0,50 é menor que o mínimo permitido para cobrança PIX. Aceitamos de R$ 1,00 a R$ 5.000,00 por cobrança.",
+  "erro": "VALOR_FORA_DO_LIMITE",
+  "operacao": "cobranca",
+  "valorInformado": "0.50",
+  "valorMinimo": "1.00",
+  "valorMaximo": "5000.00"
+}`}</Codigo>
+              <Tabela cabecalho={['Campo', 'O que é']}>
+                <Linha>
+                  <Cel mono>erro</Cel>
+                  <Cel>
+                    Sempre <C>VALOR_FORA_DO_LIMITE</C> neste caso. Use este campo no seu{' '}
+                    <C>if</C>, não a frase.
+                  </Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>operacao</Cel>
+                  <Cel>
+                    <C>cobranca</C> ou <C>saque</C> — as faixas são independentes.
+                  </Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>valorMinimo</Cel>
+                  <Cel>Piso da faixa, em string decimal.</Cel>
+                </Linha>
+                <Linha>
+                  <Cel mono>valorMaximo</Cel>
+                  <Cel>
+                    Teto da faixa. <C>null</C> = sem teto (acontece no saque).
+                  </Cel>
+                </Linha>
+              </Tabela>
+              <p>
+                Os limites e as taxas da sua conta ficam visíveis no painel, em{' '}
+                <strong>Configurações → Taxas e limites</strong>. Eles são definidos no
+                seu contrato: para alterar, fale com o suporte.
               </p>
 
               <Tabela cabecalho={['Código', 'Significado']}>

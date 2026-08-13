@@ -8,6 +8,7 @@ import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { pedirTexto } from '@/lib/dialogos';
 import { rotuloDocumento, tiposParaUploadAdmin } from '@/lib/documentos';
+import { formatarDataHora } from '@/lib/fuso';
 import {
   ACCEPT_DOCUMENTO,
   TEXTO_LIMITES_DOCUMENTO,
@@ -303,7 +304,7 @@ export function DocumentosAdmin({
               <p className="truncate text-xs opacity-60">
                 {d.nomeArquivo}
                 {tamanho(d.tamanhoBytes) ? ` · ${tamanho(d.tamanhoBytes)}` : ''} · enviado
-                em {new Date(d.enviadoEm).toLocaleString('pt-BR')}
+                em {formatarDataHora(d.enviadoEm)}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
