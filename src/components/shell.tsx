@@ -25,6 +25,7 @@ import {
   ScrollText,
   Server,
   Settings2,
+  Radar,
   ShieldAlert,
   ShieldCheck,
   Trophy,
@@ -143,6 +144,7 @@ const GRUPOS: NavGrupo[] = [
         ],
       },
       { href: '/admin/med', label: 'MED', icone: ShieldAlert },
+      { href: '/admin/seguranca', label: 'Segurança', icone: Radar },
       {
         label: 'Plataforma',
         icone: Server,

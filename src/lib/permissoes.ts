@@ -87,6 +87,7 @@ export const PERMISSOES = {
   ADMIN_FILAS_EXECUTAR: 'admin.filas.executar',
 
   ADMIN_AUDITORIA_VER: 'admin.auditoria.ver',
+  ADMIN_SEGURANCA_VER: 'admin.seguranca.ver',
 
   ESCOPO_GLOBAL: 'escopo.global',
 } as const;
@@ -123,6 +124,7 @@ export const PERMISSAO_POR_ROTA: Array<[string, CodigoPermissao]> = [
   ['/admin/med-automatico', PERMISSOES.ADMIN_MED_AUTOMATICO_VER],
   ['/admin/filas', PERMISSOES.ADMIN_FILAS_VER],
   ['/admin/auditoria', PERMISSOES.ADMIN_AUDITORIA_VER],
+  ['/admin/seguranca', PERMISSOES.ADMIN_SEGURANCA_VER],
 ];
 
 export function permissaoDaRota(pathname: string): CodigoPermissao | null {
