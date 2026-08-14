@@ -119,9 +119,11 @@ export default function SegurancaPage() {
   const [dataInicial, setDataInicial] = useState('');
   const [dataFinal, setDataFinal] = useState('');
   const [rota, setRota] = useState('');
-  // Abre em "só falhas": é o motivo de existir da tela. Rotina de 200 é ruído
-  // que esconde a rajada de 401 no meio.
-  const [resultado, setResultado] = useState('falha');
+  // Abre em TODAS: a tela é a trilha completa das rotas sensíveis, e ver o
+  // tráfego normal ao lado das recusas é o que dá noção de proporção. Quem
+  // quer caçar problema filtra em "só recusadas" — os contadores no topo já
+  // avisam se há o que caçar.
+  const [resultado, setResultado] = useState('');
   const [ip, setIp] = useState('');
   const [busca, setBusca] = useState('');
   const [pagina, setPagina] = useState(1);
@@ -345,9 +347,9 @@ export default function SegurancaPage() {
               reset();
             }}
           >
+            <option value="">Todas</option>
             <option value="falha">Só recusadas</option>
             <option value="sucesso">Só aceitas</option>
-            <option value="">Todas</option>
           </FiltroSelect>
           <FiltroTexto
             label="IP"
@@ -367,13 +369,13 @@ export default function SegurancaPage() {
             }}
             placeholder="Chave, cliente, erro ou rastreio"
           />
-          {(dataInicial || dataFinal || rota || ip || busca || resultado !== 'falha') && (
+          {(dataInicial || dataFinal || rota || ip || busca || resultado) && (
             <BotaoLimparFiltros
               onClick={() => {
                 setDataInicial('');
                 setDataFinal('');
                 setRota('');
-                setResultado('falha');
+                setResultado('');
                 setIp('');
                 setBusca('');
                 reset();
@@ -399,7 +401,7 @@ export default function SegurancaPage() {
           vazio={
             resultado === 'falha'
               ? 'Nenhuma chamada recusada no período — é o resultado que se espera ver aqui.'
-              : 'Nenhuma chamada no período.'
+              : 'Nenhuma chamada às rotas sensíveis no período.'
           }
           total={lista.data?.total ?? 0}
           pagina={pagina}
