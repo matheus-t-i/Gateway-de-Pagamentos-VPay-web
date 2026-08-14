@@ -6,6 +6,7 @@ import { Shell } from '@/components/shell';
 import { BarraFiltros, FiltroTexto, Paginacao, SeletorPorPagina } from '@/components/tabela';
 import { badgeDocumento as badge, DocumentosAdmin } from '@/components/documentos-admin';
 import { IdadeSolicitacao } from '@/components/status';
+import { TelefoneWhatsApp } from '@/components/whatsapp';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
@@ -18,6 +19,7 @@ type UsuarioAdmin = {
   idPublico: string;
   nomeRazaoSocial: string;
   email: string;
+  telefone: string | null;
   cpfCnpj: string;
   tipoPessoa: 'PF' | 'PJ';
   responsavel: { cpf: string | null; nome: string | null };
@@ -187,6 +189,11 @@ export default function AprovacoesPage() {
                 <p className="truncate text-xs opacity-60">
                   {u.email} · {formatarDocumento(u.cpfCnpj)}
                 </p>
+                {u.telefone && (
+                  <p className="mt-0.5 text-xs opacity-60">
+                    <TelefoneWhatsApp telefone={u.telefone} />
+                  </p>
+                )}
                 <p className="mt-0.5 text-xs opacity-60">
                   Solicitado em {formatarData(u.criadoEm)}
                   {' · '}

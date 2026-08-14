@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Shell } from '@/components/shell';
 import { DocumentosAdmin } from '@/components/documentos-admin';
+import { TelefoneWhatsApp } from '@/components/whatsapp';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatarDocumento } from '@/lib/documento';
@@ -241,6 +242,12 @@ export default function UsuarioDetalhePage() {
               </h1>
               <p className="mt-1 break-words text-sm opacity-70">
                 {u.email} · {formatarDocumento(u.cpfCnpj)}
+                {u.telefone && (
+                  <>
+                    {' · '}
+                    <TelefoneWhatsApp telefone={u.telefone} />
+                  </>
+                )}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
