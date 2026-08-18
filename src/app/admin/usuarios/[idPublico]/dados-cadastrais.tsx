@@ -15,7 +15,10 @@ import {
   mascaraCpf,
   mascaraDocumento,
   mascaraTelefone,
+  motivoDocumentoInvalido,
+  normalizarDocumento,
 } from '@/lib/documento';
+import { motivoTelefoneInvalido, normalizarTelefone } from '@/lib/telefone';
 import { PERMISSOES } from '@/lib/permissoes';
 import { pedirCodigoTotp } from '@/lib/step-up-totp';
 import { useBuscaCep } from '@/lib/use-busca-cep';
@@ -48,6 +51,19 @@ export type FichaCadastral = {
   endereco: Endereco | null;
   faturamentoMensalMedio: string | null;
 };
+
+/** Aviso inline do campo — só aparece com o valor completo e inválido. */
+function avisoCampo(texto: string | null) {
+  if (!texto) return null;
+  return (
+    <span
+      role="alert"
+      className="mt-1 block text-[11px] leading-snug text-red-600 dark:text-red-400"
+    >
+      {texto}
+    </span>
+  );
+}
 
 function rotulo(
   texto: string,
@@ -135,6 +151,19 @@ export function FormularioDadosCadastrais({
 
   const pj = tipoPessoa === 'PJ';
 
+  // Mesma regra e mesma frase da API (DV do documento, telefone real).
+  const docNormalizado = normalizarDocumento(cpfCnpj);
+  const motivoDocumento = motivoDocumentoInvalido(tipoPessoa, docNormalizado);
+  const respDoc = normalizarDocumento(respCpf);
+  const motivoRespCpf = pj ? motivoDocumentoInvalido('PF', respDoc) : null;
+  const foneNormalizado = normalizarTelefone(telefone);
+  const motivoTelefone = motivoTelefoneInvalido(foneNormalizado);
+  // Aviso inline só com o campo "cheio" — quem ainda digita não leva bronca.
+  const avisoDocumento =
+    docNormalizado.length >= (pj ? 14 : 11) ? motivoDocumento : null;
+  const avisoRespCpf = respDoc.length >= 11 ? motivoRespCpf : null;
+  const avisoTelefone = foneNormalizado.length >= 10 ? motivoTelefone : null;
+
   const restaurar = () => {
     setOk(false);
     setErro(null);
@@ -167,7 +196,7 @@ export function FormularioDadosCadastrais({
           cpfCnpj,
           nomeRazaoSocial: nome,
           nomeFantasia: nomeFantasia.trim() || null,
-          telefone: telefone.replace(/\D/g, ''),
+          telefone: foneNormalizado,
           faturamentoMensalMedio:
             faturamento && Number(faturamento) > 0 ? faturamento : null,
           responsavel: pj
@@ -205,8 +234,16 @@ export function FormularioDadosCadastrais({
       onSubmit={async (e) => {
         e.preventDefault();
         if (travado) return;
-        if (telefone.replace(/\D/g, '').length < 10) {
-          setErro('Informe um telefone com DDD (10 ou 11 dígitos).');
+        if (motivoDocumento) {
+          setErro(motivoDocumento);
+          return;
+        }
+        if (motivoRespCpf) {
+          setErro(`CPF do responsável — ${motivoRespCpf}`);
+          return;
+        }
+        if (motivoTelefone) {
+          setErro(motivoTelefone);
           return;
         }
         const codigoTotp = await pedirCodigoTotp(
@@ -245,8 +282,10 @@ export function FormularioDadosCadastrais({
               }
               disabled={travado}
               autoComplete="off"
+              aria-invalid={avisoDocumento ? true : undefined}
               required
             />
+            {avisoCampo(avisoDocumento)}
           </label>
           <label className="block min-w-0 sm:col-span-4 lg:col-span-5">
             {rotulo(pj ? 'Razão social' : 'Nome completo', { obrigatorio: true })}
@@ -285,10 +324,12 @@ export function FormularioDadosCadastrais({
               value={telefone}
               onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
               disabled={travado}
-              inputMode="numeric"
-              placeholder="(00) 00000-0000"
+              inputMode="tel"
+              placeholder="(11) 98765-4321"
+              aria-invalid={avisoTelefone ? true : undefined}
               required
             />
+            {avisoCampo(avisoTelefone)}
           </label>
           <CampoMoeda
             label="Faturamento médio"
@@ -319,8 +360,10 @@ export function FormularioDadosCadastrais({
                   onChange={(e) => setRespCpf(mascaraCpf(e.target.value))}
                   disabled={travado}
                   inputMode="numeric"
+                  aria-invalid={avisoRespCpf ? true : undefined}
                   required={pj}
                 />
+                {avisoCampo(avisoRespCpf)}
               </label>
             </>
           )}

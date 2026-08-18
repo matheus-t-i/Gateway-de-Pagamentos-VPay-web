@@ -8,20 +8,35 @@ import { Obrigatorio, TextoRotulo } from '@/components/obrigatorio';
 import { api } from '@/lib/api';
 import { CONTRATO_INTERMEDIACAO, TERMOS_USO, type DocumentoLegal } from '@/lib/legal';
 import {
-  isCnpj,
-  isCpf,
   mascaraCep,
   mascaraCnpj,
   mascaraCpf,
   mascaraTelefone,
+  motivoDocumentoInvalido,
   normalizarDocumento,
 } from '@/lib/documento';
+import { motivoTelefoneInvalido, normalizarTelefone } from '@/lib/telefone';
 import { textoSituacaoCep } from '@/lib/cep';
 import { useBuscaCep } from '@/lib/use-busca-cep';
 import { salvarCredsOnboarding } from '@/lib/onboarding';
 
 const inputCls =
   'mt-1 w-full rounded-md border border-ink-800/15 bg-white px-3 py-2 dark:border-white/10 dark:bg-ink-900';
+
+/**
+ * Aviso inline de campo — aparece SÓ quando o valor já está completo e é
+ * inválido (regra "lista de validação só quando serve"): quem ainda está
+ * digitando não leva bronca; quem terminou e errou o dígito descobre antes de
+ * mandar o formulário. Mesma frase que a API devolveria.
+ */
+function AvisoCampo({ texto }: { texto: string | null }) {
+  if (!texto) return null;
+  return (
+    <span role="alert" className="mt-1 block text-xs text-red-600 dark:text-red-400">
+      {texto}
+    </span>
+  );
+}
 
 function ModalDocumento({
   doc,
@@ -104,6 +119,19 @@ export default function CadastroPage() {
 
   const isPJ = tipoPessoa === 'PJ';
 
+  // Motivos de recusa (mesma regra e mesma frase da API). `null` = válido.
+  const documento = normalizarDocumento(cpfCnpj);
+  const motivoDocumento = motivoDocumentoInvalido(tipoPessoa, documento);
+  const respDoc = normalizarDocumento(respCpf);
+  const motivoRespCpf = isPJ ? motivoDocumentoInvalido('PF', respDoc) : null;
+  const fone = normalizarTelefone(telefone);
+  const motivoTelefone = motivoTelefoneInvalido(fone);
+  // Aviso inline só depois que o campo está "cheio": CPF 11 / CNPJ 14 / telefone 10+.
+  const avisoDocumento =
+    documento.length >= (isPJ ? 14 : 11) ? motivoDocumento : null;
+  const avisoRespCpf = respDoc.length >= 11 ? motivoRespCpf : null;
+  const avisoTelefone = fone.length >= 10 ? motivoTelefone : null;
+
   function trocarTipo(t: 'PF' | 'PJ') {
     setTipoPessoa(t);
     setCpfCnpj(''); // máscara muda de formato
@@ -114,23 +142,16 @@ export default function CadastroPage() {
     e.preventDefault();
     setErro(null);
 
-    const documento = normalizarDocumento(cpfCnpj);
-    if (isPJ ? !isCnpj(documento) : !isCpf(documento)) {
-      setErro(
-        isPJ
-          ? 'CNPJ inválido — 14 caracteres (o novo padrão aceita letras).'
-          : 'CPF inválido — 11 dígitos.',
-      );
+    if (motivoDocumento) {
+      setErro(motivoDocumento);
       return;
     }
-    const respDoc = normalizarDocumento(respCpf);
-    if (isPJ && !isCpf(respDoc)) {
-      setErro('Informe um CPF válido para o responsável pela empresa.');
+    if (motivoRespCpf) {
+      setErro(`CPF do responsável — ${motivoRespCpf}`);
       return;
     }
-    const fone = telefone.replace(/\D/g, '');
-    if (fone.length < 10) {
-      setErro('Informe um telefone com DDD (10 ou 11 dígitos).');
+    if (motivoTelefone) {
+      setErro(motivoTelefone);
       return;
     }
     if (!aceiteTermos || !aceiteContrato) {
@@ -212,8 +233,10 @@ export default function CadastroPage() {
               placeholder={isPJ ? '00.000.000/0000-00' : '000.000.000-00'}
               inputMode={isPJ ? 'text' : 'numeric'}
               autoComplete="off"
+              aria-invalid={avisoDocumento ? true : undefined}
               required
             />
+            <AvisoCampo texto={avisoDocumento} />
           </label>
           <label className="block text-sm">
             <TextoRotulo obrigatorio>Telefone</TextoRotulo>
@@ -221,10 +244,13 @@ export default function CadastroPage() {
               className={inputCls}
               value={telefone}
               onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
-              placeholder="(11) 99999-9999"
+              placeholder="(11) 98765-4321"
               inputMode="tel"
+              autoComplete="tel-national"
+              aria-invalid={avisoTelefone ? true : undefined}
               required
             />
+            <AvisoCampo texto={avisoTelefone} />
           </label>
         </div>
 
@@ -292,8 +318,10 @@ export default function CadastroPage() {
                   onChange={(e) => setRespCpf(mascaraCpf(e.target.value))}
                   placeholder="000.000.000-00"
                   inputMode="numeric"
+                  aria-invalid={avisoRespCpf ? true : undefined}
                   required={isPJ}
                 />
+                <AvisoCampo texto={avisoRespCpf} />
               </label>
               <label className="block text-sm">
                 <TextoRotulo obrigatorio>Nome do responsável</TextoRotulo>
