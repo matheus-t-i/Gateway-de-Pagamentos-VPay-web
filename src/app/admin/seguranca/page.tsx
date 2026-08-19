@@ -42,6 +42,7 @@ type Resposta = { pagina: number; limite: number; total: number; itens: Acesso[]
 type Resumo = {
   total: number;
   falhas: number;
+  rotasInexistentes: number;
   naoAutorizados: number;
   taxaFalha: number;
   porStatus: Array<{ status: number; quantidade: number }>;
@@ -256,7 +257,7 @@ export default function SegurancaPage() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Cartao
           rotulo="Chamadas"
           valor={String(d?.total ?? 0)}
@@ -266,7 +267,7 @@ export default function SegurancaPage() {
           rotulo="Recusadas"
           valor={String(d?.falhas ?? 0)}
           alerta={(d?.falhas ?? 0) > 0}
-          ajuda="Chamadas que terminaram em erro (status 400 ou maior)."
+          ajuda="Chamadas a rotas existentes que terminaram em erro (status 400 ou maior). Varredura de rota inexistente não conta aqui — tem cartão próprio."
         />
         <Cartao
           rotulo="Não autorizadas"
@@ -275,17 +276,23 @@ export default function SegurancaPage() {
           ajuda="401 e 403: credencial inválida, token expirado, escopo faltando ou IP fora da allowlist. É o número que denuncia varredura e chave vazada."
         />
         <Cartao
+          rotulo="Varredura"
+          valor={String(d?.rotasInexistentes ?? 0)}
+          alerta={(d?.rotasInexistentes ?? 0) > 0}
+          ajuda="Chamadas a rotas que não existem na API (404 do roteador). É assinatura de scanner procurando endpoint aberto — fica fora das recusadas e da taxa para o ruído não esconder integração doente."
+        />
+        <Cartao
           rotulo="Taxa de recusa"
           valor={`${((d?.taxaFalha ?? 0) * 100).toFixed(1).replace('.', ',')}%`}
-          ajuda="Recusadas ÷ total. Integração saudável fica perto de zero; salto repentino costuma ser chave revogada ou cliente com bug."
+          ajuda="Recusadas ÷ chamadas a rotas existentes — varredura fica fora da conta. Integração saudável fica perto de zero; salto repentino costuma ser chave revogada ou cliente com bug."
         />
       </div>
 
       {!!d?.ipsComMaisFalhas?.length && (
         <div className="mt-3 rounded-xl border border-ink-800/10 bg-white p-4 dark:border-white/10 dark:bg-ink-900">
           <p className="flex items-center gap-1 text-xs uppercase tracking-wide opacity-55">
-            IPs com mais recusas
-            <Ajuda texto="Ordenado por FALHAS, não por volume: quem erra em rajada é o sinal de varredura ou força bruta. Cliente movimentado que acerta não aparece aqui." />
+            IPs com mais falhas
+            <Ajuda texto="Ordenado por FALHAS — e aqui a varredura CONTA (diferente do cartão Recusadas): a rajada de 404 de scanner é justamente o sinal a caçar por IP. Por isso um número aqui pode ser maior que o de Recusadas. Cliente movimentado que acerta não aparece." />
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {d.ipsComMaisFalhas.map((i) => (
@@ -349,6 +356,7 @@ export default function SegurancaPage() {
           >
             <option value="">Todas</option>
             <option value="falha">Só recusadas</option>
+            <option value="varredura">Só varredura</option>
             <option value="sucesso">Só aceitas</option>
           </FiltroSelect>
           <FiltroTexto
@@ -401,7 +409,9 @@ export default function SegurancaPage() {
           vazio={
             resultado === 'falha'
               ? 'Nenhuma chamada recusada no período — é o resultado que se espera ver aqui.'
-              : 'Nenhuma chamada às rotas sensíveis no período.'
+              : resultado === 'varredura'
+                ? 'Nenhuma varredura no período — nenhum 404 de rota inexistente.'
+                : 'Nenhuma chamada às rotas sensíveis no período.'
           }
           total={lista.data?.total ?? 0}
           pagina={pagina}
