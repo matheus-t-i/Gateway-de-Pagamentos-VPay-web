@@ -35,6 +35,7 @@ type Acesso = {
   credencialNome: string | null;
   cliente: string | null;
   clienteEmail: string | null;
+  donoChaveApresentada: string | null;
 };
 
 type Resposta = { pagina: number; limite: number; total: number; itens: Acesso[] };
@@ -219,7 +220,23 @@ export default function SegurancaPage() {
       titulo: 'Quem',
       render: (r) => (
         <div className="min-w-0">
-          <p className="truncate text-xs">{r.cliente ?? 'não identificado'}</p>
+          {r.cliente ? (
+            <p className="truncate text-xs">{r.cliente}</p>
+          ) : r.donoChaveApresentada ? (
+            // Chave apresentada, identidade NÃO provada: mostra o dono da chave
+            // como pista, sem afirmar que foi ele quem chamou (a chave pública
+            // não é segredo — qualquer um pode apresentar a de outro).
+            <p className="flex min-w-0 items-center gap-1 text-xs">
+              <span className="truncate italic opacity-70">
+                {r.donoChaveApresentada}
+              </span>
+              <span className="shrink-0 rounded bg-amber-500/15 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                chave apresentada
+              </span>
+            </p>
+          ) : (
+            <p className="truncate text-xs opacity-60">não identificado</p>
+          )}
           <p className="truncate font-mono text-[11px] opacity-55">
             {r.credencialNome ?? r.chavePublica ?? '—'}
           </p>
@@ -450,6 +467,12 @@ export default function SegurancaPage() {
                 ['Origem (IP)', detalhe.enderecoIp],
                 ['Cliente', detalhe.cliente],
                 ['E-mail do cliente', detalhe.clienteEmail],
+                [
+                  'Dono da chave apresentada',
+                  detalhe.donoChaveApresentada
+                    ? `${detalhe.donoChaveApresentada} — não confirmado: a chave pública não é segredo, então isto indica de quem é a chave, não quem fez a chamada`
+                    : null,
+                ],
                 ['Credencial', detalhe.credencialNome],
                 ['Chave pública', detalhe.chavePublica],
                 ['Latência', detalhe.latenciaMs != null ? `${detalhe.latenciaMs} ms` : null],
