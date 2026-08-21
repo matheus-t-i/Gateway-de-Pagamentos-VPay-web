@@ -6,12 +6,19 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useTheme } from 'next-themes';
 import { api } from './api';
 import { limparCredsOnboarding } from './onboarding';
 import type { CodigoPermissao } from './permissoes';
+import {
+  estaNaJanelaDeRenovacao,
+  instanteRenovacao,
+  MARGEM_MINIMA_RENOVACAO_MS,
+  type JanelaToken,
+} from './sessao-painel';
 
 type Usuario = {
   idPublico: string;
@@ -85,21 +92,35 @@ function mapTema(tema: Usuario['temaPreferido']): string {
 }
 
 /**
- * Lê o `exp` do JWT (epoch ms). Sem verificar assinatura de propósito: isto é
- * só para mostrar o contador na tela e encerrar a sessão na hora certa — quem
- * valida o token de verdade é a API.
+ * Lê `iat` e `exp` do JWT (epoch ms). Sem verificar assinatura de propósito:
+ * isto é só para mostrar o contador na tela, pedir a renovação na hora certa e
+ * encerrar a sessão quando vencer — quem valida o token de verdade é a API.
  */
-function expiracaoDoToken(token: string): number | null {
+function janelaDoToken(token: string): JanelaToken | null {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
     const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-    const exp = (JSON.parse(json) as { exp?: number }).exp;
-    return typeof exp === 'number' ? exp * 1000 : null;
+    const { iat, exp } = JSON.parse(json) as { iat?: number; exp?: number };
+    if (typeof exp !== 'number') return null;
+    // Sem `iat` a validade total é desconhecida: a janela nasce com duração
+    // zero, o que desliga a renovação e deixa a sessão expirar normalmente —
+    // desfecho seguro para um token que não sabemos ler por inteiro.
+    return {
+      emitidoEm: (typeof iat === 'number' ? iat : exp) * 1000,
+      expiraEm: exp * 1000,
+    };
   } catch {
     return null;
   }
 }
+
+/**
+ * Intervalo entre tentativas quando a renovação falha. Curto e constante de
+ * propósito: a falha típica é um soluço de rede, e a janela inteira (os 25%
+ * finais da validade) é o orçamento de tentativas.
+ */
+const INTERVALO_RETENTATIVA_RENOVACAO_MS = 60_000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
@@ -111,6 +132,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const [hidratando, setHidratando] = useState(true);
   const { setTheme } = useTheme();
+  /** Trava de reentrância: o timer e o `visibilitychange` podem cair juntos. */
+  const renovando = useRef(false);
+
+  /**
+   * Único lugar que grava o token: localStorage (o que sobrevive ao reload) e
+   * estado (o que as telas leem). Login e renovação passam pelos dois.
+   */
+  const guardarToken = useCallback((novo: string) => {
+    localStorage.setItem('vpay_token', novo);
+    setToken(novo);
+  }, []);
 
   useEffect(() => {
     const t = localStorage.getItem('vpay_token');
@@ -150,14 +182,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       // Regra de segurança: só conta APROVADA (ATIVO) recebe/persiste token.
       if (res.situacao === 'ATIVO' && res.accessToken && res.usuario) {
-        localStorage.setItem('vpay_token', res.accessToken);
-        setToken(res.accessToken);
+        guardarToken(res.accessToken);
         setUsuario(res.usuario);
         setTheme(mapTema(res.usuario.temaPreferido));
       }
       return res;
     },
-    [setTheme],
+    [setTheme, guardarToken],
   );
 
   /**
@@ -179,7 +210,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const expiraEm = useMemo(() => (token ? expiracaoDoToken(token) : null), [token]);
+  const janela = useMemo(() => (token ? janelaDoToken(token) : null), [token]);
+  const expiraEm = janela?.expiraEm ?? null;
 
   /**
    * Encerra a sessão sozinho quando o token expira. Sem isto o painel continua
@@ -189,14 +221,105 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     if (!expiraEm) return;
+
+    /**
+     * Antes de derrubar, confere o localStorage: OUTRA aba pode ter renovado a
+     * sessão. Aba em segundo plano não renova (de propósito), então sem esta
+     * adoção ela venceria primeiro e apagaria o token de quem está trabalhando
+     * na aba da frente — o oposto do que a renovação existe para fazer.
+     */
+    const encerrar = () => {
+      const guardado = localStorage.getItem('vpay_token');
+      if (guardado && guardado !== token) {
+        const outra = janelaDoToken(guardado);
+        if (outra && outra.expiraEm > Date.now()) {
+          setToken(guardado);
+          return;
+        }
+      }
+      logout();
+    };
+
     const restante = expiraEm - Date.now();
     if (restante <= 0) {
-      logout();
+      encerrar();
       return;
     }
-    const id = setTimeout(logout, restante);
+    const id = setTimeout(encerrar, restante);
     return () => clearTimeout(id);
-  }, [expiraEm, logout]);
+  }, [expiraEm, logout, token]);
+
+  /**
+   * Renovação silenciosa: troca o token por um novo quando resta 25% da
+   * validade (`instanteRenovacao`), para quem está no meio de uma tarefa não
+   * perder a tela por causa do relógio. É a MESMA sessão continuando — o token
+   * novo entra no lugar do antigo e nada mais na aplicação muda.
+   *
+   * Dois casos NÃO renovam, de propósito, e a sessão expira normalmente:
+   *
+   * - **aba inativa** — sessão de painel financeiro não pode se manter viva
+   *   sozinha numa aba esquecida em segundo plano; só renova quem está usando.
+   *   Se a pessoa voltar antes do vencimento, o `visibilitychange` renova na
+   *   hora — o `setTimeout` de aba oculta chega atrasado, ou não chega, quando
+   *   a máquina dorme, então voltar para a aba é o gatilho confiável;
+   * - **renovação que falha** (rede, API fora, teto da sessão atingido) — não
+   *   derruba a sessão nem mostra erro: o token atual segue valendo até o `exp`
+   *   e o efeito acima faz o encerramento de sempre. Enquanto sobrar tempo
+   *   hábil, tenta de novo a cada minuto.
+   */
+  useEffect(() => {
+    if (!token || !janela) return;
+    // Cópias locais: as funções abaixo são declarações hoisted, e o TypeScript
+    // não leva o estreitamento do `if` para dentro delas.
+    const tokenAtual = token;
+    const janelaAtual = janela;
+    let vivo = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    function agendar(emMs: number) {
+      if (!vivo) return;
+      clearTimeout(timer);
+      const espera = Math.max(0, emMs);
+      // Perto demais do vencimento: o token novo nasceria quase morto e a
+      // tentativa só atrasaria o encerramento. Deixa expirar.
+      if (Date.now() + espera >= janelaAtual.expiraEm - MARGEM_MINIMA_RENOVACAO_MS) {
+        return;
+      }
+      timer = setTimeout(() => void tentar(), espera);
+    }
+
+    async function tentar() {
+      if (!vivo || renovando.current) return;
+      // Aba oculta não renova — e não reagenda: quem retoma é o visibilitychange.
+      if (document.visibilityState !== 'visible') return;
+      if (!estaNaJanelaDeRenovacao(janelaAtual, Date.now())) return;
+      renovando.current = true;
+      try {
+        const res = await api<{ accessToken?: string }>('/auth/renovar', {
+          method: 'POST',
+          token: tokenAtual,
+        });
+        // O token novo remonta este efeito, já com a janela nova.
+        if (vivo && res.accessToken) guardarToken(res.accessToken);
+      } catch {
+        agendar(INTERVALO_RETENTATIVA_RENOVACAO_MS);
+      } finally {
+        renovando.current = false;
+      }
+    }
+
+    const aoTrocarVisibilidade = () => {
+      if (document.visibilityState === 'visible') void tentar();
+    };
+
+    agendar(instanteRenovacao(janelaAtual) - Date.now());
+    document.addEventListener('visibilitychange', aoTrocarVisibilidade);
+    return () => {
+      vivo = false;
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', aoTrocarVisibilidade);
+    };
+  }, [token, janela, guardarToken]);
 
   /**
    * Tema NÃO pede 2FA: é preferência visual, e a rota `/auth/me/tema` aceita
